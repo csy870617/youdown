@@ -8,39 +8,69 @@
 
 - 🔗 링크 붙여넣기 한 번으로 제목·썸네일·길이 미리보기
 - 🎬 영상은 MP4 (최고화질 / 1080p / 720p / 480p / 360p 선택)
-- 🎵 음원은 MP3 로 추출 (ffmpeg 있을 때)
+- 🎵 음원은 MP3 로 추출
 - 📊 다운로드 진행률 실시간 표시 (SSE)
-- 📱 모바일 대응 반응형 UI
+- 🖱 **더블클릭 실행** — 실행하면 브라우저가 자동으로 열림
+- 📦 **설치 불필요** — 최초 실행 시 yt-dlp·ffmpeg 를 자동으로 내려받음
 
-## 요구 사항
+## 다운로드해서 바로 쓰기 (권장)
 
-| 도구 | 용도 | 설치 |
-| --- | --- | --- |
-| Node.js 18+ | 서버 실행 | https://nodejs.org |
-| [yt-dlp](https://github.com/yt-dlp/yt-dlp) | 다운로드 엔진 (필수) | `pip install yt-dlp` |
-| [ffmpeg](https://ffmpeg.org) | 고화질 병합 · MP3 변환 (권장) | `apt install ffmpeg` / `brew install ffmpeg` |
+Node.js 같은 걸 설치할 필요 없이 **실행파일 하나만 내려받아 실행**하면 됩니다.
 
-> ffmpeg 이 없어도 동작합니다. 이 경우 영상은 단일 스트림(오디오·비디오가 이미 합쳐진 포맷), 음원은 원본 오디오(m4a 등)로 제공됩니다.
+1. **[Releases](../../releases)** 에서 내 OS 에 맞는 파일을 받습니다.
+   - Windows → `youdown-win.exe`
+   - macOS → `youdown-macos`
+   - Linux → `youdown-linux`
+2. 파일을 **더블클릭**(또는 실행)합니다.
+3. 잠시 뒤 브라우저가 열리면, 유튜브 링크를 붙여넣고 영상/음원을 받습니다.
 
-## 실행
+> **최초 실행 1회**만 필수 구성요소(yt-dlp·ffmpeg)를 자동으로 내려받습니다(수십 MB,
+> 인터넷 필요). 화면에 "최초 실행 준비 중" 이 표시되며, 끝나면 바로 사용할 수 있습니다.
+
+> **OS 보안 경고 안내**
+> - Windows: "Windows의 PC 보호" 창이 뜨면 → **추가 정보 → 실행**.
+> - macOS: "확인되지 않은 개발자" 경고 시 → 파일 **우클릭 → 열기**, 또는
+>   `chmod +x youdown-macos` 후 실행. (서명되지 않은 배포라 나타나는 정상 경고입니다.)
+
+## 개발자용 실행 (소스에서)
+
+Node.js 18+ 가 있으면 소스로도 실행할 수 있습니다.
 
 ```bash
 npm install
-npm start
-# 브라우저에서 http://localhost:3000 접속
+npm start        # 브라우저 자동 오픈
 ```
 
-포트를 바꾸려면 `PORT=8080 npm start` 처럼 환경변수를 지정하세요.
+- 포트 변경: `PORT=8080 npm start`
+- 브라우저 자동 오픈 끄기: `YOUDOWN_NO_OPEN=1 npm start`
+- yt-dlp / ffmpeg 를 직접 설치해 두면(PATH 에 있으면) 자동 다운로드를 건너뜁니다.
+
+## 실행파일 직접 빌드
+
+```bash
+npm install
+npm run build          # dist/ 에 3개 OS 실행파일 생성
+# 또는 특정 OS만: npm run build:win / build:mac / build:linux
+```
+
+> GitHub 에 `v1.0.0` 같은 **태그를 푸시하면** Actions 가 3개 OS 실행파일을 자동
+> 빌드해 Releases 에 올립니다(`.github/workflows/release.yml`).
 
 ## 구조
 
 ```
 youdown/
-├─ server.js          # Express 서버 + yt-dlp 연동, 진행률 SSE
+├─ server.js          # Express 서버 + yt-dlp 연동, 진행률 SSE, 자동 오픈
+├─ src/
+│  ├─ tools.js        # yt-dlp·ffmpeg 자동 탐색/다운로드
+│  └─ open.js         # 기본 브라우저 자동 실행
 ├─ public/
 │  ├─ index.html      # 페이지
 │  ├─ style.css       # 스타일
-│  └─ app.js          # 프론트엔드 로직
+│  └─ app.js          # 프론트엔드 로직 (준비 상태 폴링 포함)
+├─ Dockerfile         # 서버 배포용 이미지
+├─ render.yaml        # Render 배포 설정
+├─ .github/workflows/release.yml  # 실행파일 자동 빌드·릴리스
 ├─ package.json
 └─ README.md
 ```

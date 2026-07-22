@@ -1,77 +1,38 @@
 import express from "express";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import net from "node:net";
 import { fileURLToPath } from "node:url";
+import { ensureTools } from "./src/tools.js";
+import { openBrowser } from "./src/open.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
 // ---------------------------------------------------------------------------
-// 환경 점검 (yt-dlp / ffmpeg)
+// 도구/환경 상태 (최초 실행 시 자동 준비)
 // ---------------------------------------------------------------------------
-function resolveBin(candidates) {
-  for (const bin of candidates) {
-    const r = spawnSync(bin, ["--version"], { encoding: "utf8" });
-    if (!r.error) return bin;
-  }
-  return null;
-}
+let YTDLP = null;
+let FFMPEG_DIR = null; // 다운로드한 ffmpeg 디렉터리 (시스템 PATH 사용 시 null)
+let HAS_FFMPEG = false;
+let DENO_BIN = null;
+let COMMON_ARGS = [];
+let YT_ENV = { ...process.env };
 
-const YTDLP = resolveBin(["yt-dlp", "yt-dlp.exe", "youtube-dl"]);
-const HAS_FFMPEG = !!resolveBin(["ffmpeg"]);
-
-// JS 런타임 (yt-dlp 의 유튜브 서명/nsig 해독에 사용). deno 를 우선 탐색.
-function resolveJsRuntime() {
-  const candidates = [
-    process.env.DENO_BIN,
-    "deno",
-    path.join(os.homedir(), ".deno", "bin", "deno"),
-  ].filter(Boolean);
-  for (const bin of candidates) {
-    const r = spawnSync(bin, ["--version"], { encoding: "utf8" });
-    if (!r.error) return bin;
-  }
-  return null;
-}
-const DENO_BIN = resolveJsRuntime();
-
-if (!YTDLP) {
-  console.warn(
-    "\n[경고] yt-dlp 를 찾을 수 없습니다. `pip install yt-dlp` 로 설치하세요.\n"
-  );
-}
-if (!HAS_FFMPEG) {
-  console.warn(
-    "[경고] ffmpeg 이 없습니다. 고화질 병합/음원 변환 품질이 제한됩니다.\n"
-  );
-}
-
-// yt-dlp 실행 시 사용할 환경 (deno 가 커스텀 경로에 있으면 PATH 에 추가)
-const YT_ENV = { ...process.env };
-if (DENO_BIN) {
-  const denoDir = path.dirname(DENO_BIN);
-  YT_ENV.PATH = `${denoDir}${path.delimiter}${YT_ENV.PATH || ""}`;
-}
-// 모든 yt-dlp 호출에 공통으로 붙일 인자
-const COMMON_ARGS = [];
-if (DENO_BIN) COMMON_ARGS.push("--js-runtimes", "deno");
-// 서버 환경에서의 안정성 옵션 (일시적 네트워크/차단 대응)
-COMMON_ARGS.push("--retries", "5", "--fragment-retries", "5");
+let toolsReady = false;
+let bootStatus = "필수 구성요소를 준비하고 있습니다…";
+let bootError = null;
 
 const DOWNLOAD_ROOT = path.join(os.tmpdir(), "youdown-files");
 fs.mkdirSync(DOWNLOAD_ROOT, { recursive: true });
 
-// 쿠키 지원 — 배포된 서버(데이터센터 IP)에서 유튜브 봇 차단을 우회하려면
-// 로그인 상태의 쿠키(Netscape 형식)가 필요할 수 있습니다.
-//   - YTDLP_COOKIES_FILE : 쿠키 파일 경로
-//   - YTDLP_COOKIES_B64  : 쿠키 파일 내용을 base64 로 인코딩한 문자열(환경변수용)
+// 쿠키 지원 (배포/서버 환경에서 유튜브 봇 차단 우회용, 로컬에선 대개 불필요)
 function resolveCookies() {
   const explicit = process.env.YTDLP_COOKIES_FILE;
   if (explicit && fs.existsSync(explicit)) return explicit;
@@ -79,21 +40,74 @@ function resolveCookies() {
   if (b64) {
     try {
       const p = path.join(DOWNLOAD_ROOT, "cookies.txt");
-      fs.writeFileSync(p, Buffer.from(b64, "base64").toString("utf8"), { mode: 0o600 });
+      fs.writeFileSync(p, Buffer.from(b64, "base64").toString("utf8"), {
+        mode: 0o600,
+      });
       return p;
     } catch {
-      console.warn("[경고] YTDLP_COOKIES_B64 디코딩에 실패했습니다.");
+      console.warn("[경고] YTDLP_COOKIES_B64 디코딩 실패");
     }
   }
   return null;
 }
 const COOKIES_FILE = resolveCookies();
-if (COOKIES_FILE) COMMON_ARGS.push("--cookies", COOKIES_FILE);
 
-// 진행 중인 작업 저장소
+// 도구 준비가 끝난 뒤 실행 인자 구성
+function rebuildCommonArgs() {
+  const args = [];
+  if (DENO_BIN) args.push("--js-runtimes", "deno");
+  if (FFMPEG_DIR) args.push("--ffmpeg-location", FFMPEG_DIR);
+  if (COOKIES_FILE) args.push("--cookies", COOKIES_FILE);
+  args.push("--retries", "5", "--fragment-retries", "5");
+  COMMON_ARGS = args;
+
+  YT_ENV = { ...process.env };
+  const pathParts = [];
+  if (DENO_BIN) pathParts.push(path.dirname(DENO_BIN));
+  if (FFMPEG_DIR) pathParts.push(FFMPEG_DIR);
+  if (pathParts.length) {
+    YT_ENV.PATH = `${pathParts.join(path.delimiter)}${path.delimiter}${YT_ENV.PATH || ""}`;
+  }
+}
+
+async function initTools() {
+  try {
+    const t = await ensureTools((msg) => {
+      bootStatus = msg;
+      console.log("  · " + msg);
+    });
+    YTDLP = t.ytdlp;
+    FFMPEG_DIR = t.ffmpegDir;
+    HAS_FFMPEG = t.hasFfmpeg;
+    DENO_BIN = t.deno;
+    rebuildCommonArgs();
+    toolsReady = true;
+    bootStatus = "준비 완료";
+    console.log(
+      `\n  준비 완료 · ffmpeg: ${HAS_FFMPEG ? "OK" : "없음"} | JS런타임(deno): ${DENO_BIN ? "OK" : "없음"} | 쿠키: ${COOKIES_FILE ? "OK" : "없음"}\n`
+    );
+  } catch (e) {
+    bootError = e.message || "구성요소 준비에 실패했습니다.";
+    bootStatus = "준비 실패";
+    console.error("[오류] 도구 준비 실패:", bootError);
+  }
+}
+
+function requireReady(res) {
+  if (bootError) {
+    res.status(503).json({ error: "구성요소 준비 실패: " + bootError });
+    return false;
+  }
+  if (!toolsReady) {
+    res.status(503).json({ error: bootStatus });
+    return false;
+  }
+  return true;
+}
+
+// 진행 중인 작업
 const jobs = new Map();
 
-// URL 이 유튜브(또는 yt-dlp 지원)인지 최소 검증
 function looksLikeUrl(u) {
   try {
     const parsed = new URL(u);
@@ -107,9 +121,10 @@ function looksLikeUrl(u) {
 // 영상 정보 조회
 // ---------------------------------------------------------------------------
 app.post("/api/info", (req, res) => {
-  if (!YTDLP) return res.status(500).json({ error: "서버에 yt-dlp 가 설치되어 있지 않습니다." });
+  if (!requireReady(res)) return;
   const { url } = req.body || {};
-  if (!looksLikeUrl(url)) return res.status(400).json({ error: "올바른 URL 을 입력하세요." });
+  if (!looksLikeUrl(url))
+    return res.status(400).json({ error: "올바른 URL 을 입력하세요." });
 
   const args = [...COMMON_ARGS, "-J", "--no-playlist", "--no-warnings", url];
   const child = spawn(YTDLP, args, { env: YT_ENV });
@@ -117,11 +132,11 @@ app.post("/api/info", (req, res) => {
   let err = "";
   child.stdout.on("data", (d) => (out += d));
   child.stderr.on("data", (d) => (err += d));
-  child.on("error", () => res.status(500).json({ error: "yt-dlp 실행에 실패했습니다." }));
+  child.on("error", () =>
+    res.status(500).json({ error: "yt-dlp 실행에 실패했습니다." })
+  );
   child.on("close", (code) => {
-    if (code !== 0) {
-      return res.status(400).json({ error: parseYtError(err) });
-    }
+    if (code !== 0) return res.status(400).json({ error: parseYtError(err) });
     try {
       const info = JSON.parse(out);
       res.json({
@@ -141,9 +156,10 @@ app.post("/api/info", (req, res) => {
 // 다운로드 작업 생성
 // ---------------------------------------------------------------------------
 app.post("/api/jobs", (req, res) => {
-  if (!YTDLP) return res.status(500).json({ error: "서버에 yt-dlp 가 설치되어 있지 않습니다." });
+  if (!requireReady(res)) return;
   const { url, type = "video", quality = "best" } = req.body || {};
-  if (!looksLikeUrl(url)) return res.status(400).json({ error: "올바른 URL 을 입력하세요." });
+  if (!looksLikeUrl(url))
+    return res.status(400).json({ error: "올바른 URL 을 입력하세요." });
   if (type !== "video" && type !== "audio")
     return res.status(400).json({ error: "type 은 video 또는 audio 여야 합니다." });
 
@@ -171,7 +187,6 @@ app.post("/api/jobs", (req, res) => {
 
   let errBuf = "";
   const handleLine = (line) => {
-    // 진행률 파싱: "[download]  42.7% ..."
     const m = line.match(/\[download\]\s+([\d.]+)%/);
     if (m) {
       job.percent = parseFloat(m[1]);
@@ -207,7 +222,6 @@ app.post("/api/jobs", (req, res) => {
       cleanupLater(job);
       return;
     }
-    // 결과 파일 찾기
     const files = fs.readdirSync(outDir).filter((f) => !f.endsWith(".part"));
     if (files.length === 0) {
       job.status = "error";
@@ -250,14 +264,11 @@ app.get("/api/jobs/:id/events", (req, res) => {
         fileName: job.fileName,
       })}\n\n`
     );
-    if (job.status === "done" || job.status === "error") {
-      res.end();
-    }
+    if (job.status === "done" || job.status === "error") res.end();
   };
 
   job.listeners.add(send);
-  send(); // 즉시 현재 상태 전송
-
+  send();
   req.on("close", () => job.listeners.delete(send));
 });
 
@@ -293,11 +304,9 @@ function buildYtArgs({ url, type, quality, outDir }) {
     if (HAS_FFMPEG) {
       base.push("-x", "--audio-format", "mp3", "--audio-quality", "0");
     } else {
-      // ffmpeg 없으면 원본 오디오 스트림(m4a 등)만 저장
       base.push("-f", "bestaudio/best");
     }
   } else {
-    // 영상
     let selector;
     if (quality === "best") {
       selector = HAS_FFMPEG ? "bv*+ba/b" : "b[ext=mp4]/b";
@@ -320,7 +329,6 @@ function attachLineReader(stream, onLine) {
   stream.setEncoding("utf8");
   stream.on("data", (chunk) => {
     buf += chunk;
-    // yt-dlp 진행률은 \r 로 갱신되므로 \r, \n 모두 구분자로 처리
     const parts = buf.split(/[\r\n]/);
     buf = parts.pop();
     for (const line of parts) if (line.trim()) onLine(line.trim());
@@ -349,9 +357,9 @@ function parseYtError(err) {
   if (!line) return "다운로드에 실패했습니다.";
   const cleaned = line.replace(/^ERROR:\s*/i, "").trim();
   if (/Sign in to confirm|not a bot|429|Too Many Requests/i.test(cleaned))
-    return "유튜브가 이 서버를 봇으로 차단했습니다. 서버에 쿠키(YTDLP_COOKIES_B64)를 설정해야 다운로드가 가능합니다.";
+    return "유튜브가 봇으로 판단해 차단했습니다. 잠시 후 다시 시도하거나, 서버 배포 시에는 쿠키 설정이 필요합니다.";
   if (/HTTP Error 403|Forbidden/i.test(cleaned))
-    return "유튜브가 다운로드를 거부했습니다(403). 서버 배포 환경에서는 쿠키 설정이 필요할 수 있습니다.";
+    return "유튜브가 다운로드를 거부했습니다(403). 잠시 후 다시 시도해 보세요.";
   if (/Private video/i.test(cleaned)) return "비공개 영상입니다.";
   if (/Video unavailable/i.test(cleaned)) return "이용할 수 없는 영상입니다.";
   if (/is not a valid URL/i.test(cleaned)) return "올바른 URL 이 아닙니다.";
@@ -371,11 +379,11 @@ function cleanupLater(job, delay = 60_000) {
   }, delay);
 }
 
-// 오래된 임시 파일 주기적 청소 (1시간)
 setInterval(() => {
   const cutoff = Date.now() - 60 * 60 * 1000;
   try {
     for (const name of fs.readdirSync(DOWNLOAD_ROOT)) {
+      if (name === "cookies.txt") continue;
       const p = path.join(DOWNLOAD_ROOT, name);
       const st = fs.statSync(p);
       if (st.mtimeMs < cutoff) fs.rmSync(p, { recursive: true, force: true });
@@ -387,6 +395,9 @@ setInterval(() => {
 
 app.get("/api/health", (_req, res) => {
   res.json({
+    ready: toolsReady,
+    bootStatus,
+    bootError,
     ytDlp: !!YTDLP,
     ffmpeg: HAS_FFMPEG,
     jsRuntime: !!DENO_BIN,
@@ -394,9 +405,38 @@ app.get("/api/health", (_req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n  youdown 서버 실행 중 → http://localhost:${PORT}`);
-  console.log(
-    `  yt-dlp: ${YTDLP ? "OK" : "없음"} | ffmpeg: ${HAS_FFMPEG ? "OK" : "없음"} | JS런타임(deno): ${DENO_BIN ? "OK" : "없음"} | 쿠키: ${COOKIES_FILE ? "OK" : "없음"}\n`
-  );
-});
+// ---------------------------------------------------------------------------
+// 빈 포트 찾아서 서버 시작
+// ---------------------------------------------------------------------------
+function findFreePort(preferred) {
+  return new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.once("error", () => {
+      // preferred 사용 중 → 임의 빈 포트
+      const s2 = net.createServer();
+      s2.listen(0, () => {
+        const port = s2.address().port;
+        s2.close(() => resolve(port));
+      });
+    });
+    srv.once("listening", () => {
+      srv.close(() => resolve(preferred));
+    });
+    srv.listen(preferred);
+  });
+}
+
+const AUTO_OPEN = process.env.YOUDOWN_NO_OPEN !== "1";
+
+(async () => {
+  const preferred = parseInt(process.env.PORT || "3000", 10);
+  const port = await findFreePort(preferred);
+  app.listen(port, () => {
+    const url = `http://localhost:${port}`;
+    console.log(`\n  youdown 실행 중 → ${url}`);
+    console.log("  브라우저가 자동으로 열립니다. (닫으려면 이 창을 종료)\n");
+    if (AUTO_OPEN) openBrowser(url);
+    // 서버는 즉시 응답하고, 도구 준비는 백그라운드로 진행
+    initTools();
+  });
+})();

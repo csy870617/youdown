@@ -24,16 +24,41 @@ const progressNote = $("progress-note");
 let currentUrl = "";
 let selectedType = "video";
 
-// 환경 정보 표시 (ffmpeg 유무)
-fetch("/api/health")
-  .then((r) => r.json())
-  .then((h) => {
+// 준비 상태 폴링 (최초 실행 시 yt-dlp/ffmpeg 자동 설치 대기)
+function setReady(isReady) {
+  fetchBtn.disabled = !isReady;
+  urlInput.disabled = !isReady;
+}
+
+async function pollHealth() {
+  try {
+    const h = await (await fetch("/api/health")).json();
+    if (h.bootError) {
+      $("env-note").textContent = "⚠ 준비 실패: " + h.bootError;
+      setReady(false);
+      return;
+    }
+    if (!h.ready) {
+      $("env-note").textContent =
+        "⏳ 최초 실행 준비 중 — " + (h.bootStatus || "구성요소 내려받는 중…");
+      setReady(false);
+      setTimeout(pollHealth, 1000);
+      return;
+    }
+    // 준비 완료
+    setReady(true);
     if (!h.ffmpeg) {
       $("env-note").textContent =
-        "※ 서버에 ffmpeg 이 없어 음원은 원본 오디오(m4a), 영상은 단일 스트림으로 제공됩니다.";
+        "※ ffmpeg 이 없어 음원은 원본 오디오, 영상은 단일 스트림으로 제공됩니다.";
+    } else {
+      $("env-note").textContent = "";
     }
-  })
-  .catch(() => {});
+  } catch {
+    setTimeout(pollHealth, 1500);
+  }
+}
+setReady(false);
+pollHealth();
 
 function showError(msg) {
   inputError.textContent = msg;
