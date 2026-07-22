@@ -13,11 +13,17 @@ if [ ! -f "$BIN" ]; then
 fi
 
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 
 # 실제 서버 바이너리
 cp "$BIN" "$APP/Contents/MacOS/youdown-bin"
 chmod +x "$APP/Contents/MacOS/youdown-bin"
+
+# 앱 아이콘
+ICON="$(dirname "$0")/../assets/icon.icns"
+if [ -f "$ICON" ]; then
+  cp "$ICON" "$APP/Contents/Resources/icon.icns"
+fi
 
 # 앱의 진입점(런처): 출력을 로그 파일로 남기고 서버 바이너리 실행
 cat > "$APP/Contents/MacOS/youdown" <<'SH'
@@ -40,6 +46,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleVersion</key><string>1.0.0</string>
   <key>CFBundleShortVersionString</key><string>1.0.0</string>
   <key>CFBundleExecutable</key><string>youdown</string>
+  <key>CFBundleIconFile</key><string>icon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>10.13</string>
 </dict>
