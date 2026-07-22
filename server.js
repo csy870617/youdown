@@ -9,11 +9,16 @@ import { fileURLToPath } from "node:url";
 import { ensureTools } from "./src/tools.js";
 import { openBrowser } from "./src/open.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// 번들(CJS, esbuild)에서는 전역 __dirname 을, 소스 실행(ESM)에서는
+// import.meta.url 을 사용해 기준 디렉터리를 구한다.
+const ROOT_DIR =
+  typeof __dirname !== "undefined"
+    ? __dirname
+    : path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.static(path.join(ROOT_DIR, "public")));
 
 // ---------------------------------------------------------------------------
 // 도구/환경 상태 (최초 실행 시 자동 준비)

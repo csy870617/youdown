@@ -4,14 +4,15 @@
   "description": "YouTube 영상/음원 다운로더 - 링크만 입력하면 영상 또는 음원으로 저장",
   "type": "module",
   "main": "server.js",
-  "bin": "server.js",
+  "bin": "youdown.bundle.cjs",
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "build": "pkg . --no-bytecode --public-packages \"*\" --public --out-path dist",
-    "build:linux": "pkg . --no-bytecode --public-packages \"*\" --public --targets node22-linux-x64 --out-path dist",
-    "build:mac": "pkg . --no-bytecode --public-packages \"*\" --public --targets node22-macos-x64 --out-path dist",
-    "build:win": "pkg . --no-bytecode --public-packages \"*\" --public --targets node22-win-x64 --out-path dist"
+    "bundle": "esbuild server.js --bundle --platform=node --format=cjs --outfile=youdown.bundle.cjs",
+    "build": "npm run bundle && pkg . --no-bytecode --public --out-path dist",
+    "build:linux": "npm run bundle && pkg . --no-bytecode --public --targets node22-linux-x64 --out-path dist",
+    "build:mac": "npm run bundle && pkg . --no-bytecode --public --targets node22-macos-x64 --out-path dist",
+    "build:win": "npm run bundle && pkg . --no-bytecode --public --targets node22-win-x64 --out-path dist"
   },
   "engines": {
     "node": ">=18"
@@ -20,12 +21,10 @@
     "express": "^4.19.2"
   },
   "devDependencies": {
-    "@yao-pkg/pkg": "^6.21.0"
+    "@yao-pkg/pkg": "^6.21.0",
+    "esbuild": "^0.28.1"
   },
   "pkg": {
-    "scripts": [
-      "src/**/*.js"
-    ],
     "assets": [
       "public/**/*"
     ],

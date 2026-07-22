@@ -4,3 +4,4 @@ node_modules/
 downloads/
 dist/
 .pkg-cache/
+youdown.bundle.cjs
