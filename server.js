@@ -59,11 +59,36 @@ if (DENO_BIN) {
   const denoDir = path.dirname(DENO_BIN);
   YT_ENV.PATH = `${denoDir}${path.delimiter}${YT_ENV.PATH || ""}`;
 }
-// 모든 yt-dlp 호출에 공통으로 붙일 인자 (JS 런타임 지정)
-const COMMON_ARGS = DENO_BIN ? ["--js-runtimes", "deno"] : [];
+// 모든 yt-dlp 호출에 공통으로 붙일 인자
+const COMMON_ARGS = [];
+if (DENO_BIN) COMMON_ARGS.push("--js-runtimes", "deno");
+// 서버 환경에서의 안정성 옵션 (일시적 네트워크/차단 대응)
+COMMON_ARGS.push("--retries", "5", "--fragment-retries", "5");
 
 const DOWNLOAD_ROOT = path.join(os.tmpdir(), "youdown-files");
 fs.mkdirSync(DOWNLOAD_ROOT, { recursive: true });
+
+// 쿠키 지원 — 배포된 서버(데이터센터 IP)에서 유튜브 봇 차단을 우회하려면
+// 로그인 상태의 쿠키(Netscape 형식)가 필요할 수 있습니다.
+//   - YTDLP_COOKIES_FILE : 쿠키 파일 경로
+//   - YTDLP_COOKIES_B64  : 쿠키 파일 내용을 base64 로 인코딩한 문자열(환경변수용)
+function resolveCookies() {
+  const explicit = process.env.YTDLP_COOKIES_FILE;
+  if (explicit && fs.existsSync(explicit)) return explicit;
+  const b64 = process.env.YTDLP_COOKIES_B64;
+  if (b64) {
+    try {
+      const p = path.join(DOWNLOAD_ROOT, "cookies.txt");
+      fs.writeFileSync(p, Buffer.from(b64, "base64").toString("utf8"), { mode: 0o600 });
+      return p;
+    } catch {
+      console.warn("[경고] YTDLP_COOKIES_B64 디코딩에 실패했습니다.");
+    }
+  }
+  return null;
+}
+const COOKIES_FILE = resolveCookies();
+if (COOKIES_FILE) COMMON_ARGS.push("--cookies", COOKIES_FILE);
 
 // 진행 중인 작업 저장소
 const jobs = new Map();
@@ -323,10 +348,15 @@ function parseYtError(err) {
     .find((l) => /ERROR/i.test(l));
   if (!line) return "다운로드에 실패했습니다.";
   const cleaned = line.replace(/^ERROR:\s*/i, "").trim();
+  if (/Sign in to confirm|not a bot|429|Too Many Requests/i.test(cleaned))
+    return "유튜브가 이 서버를 봇으로 차단했습니다. 서버에 쿠키(YTDLP_COOKIES_B64)를 설정해야 다운로드가 가능합니다.";
+  if (/HTTP Error 403|Forbidden/i.test(cleaned))
+    return "유튜브가 다운로드를 거부했습니다(403). 서버 배포 환경에서는 쿠키 설정이 필요할 수 있습니다.";
   if (/Private video/i.test(cleaned)) return "비공개 영상입니다.";
   if (/Video unavailable/i.test(cleaned)) return "이용할 수 없는 영상입니다.";
   if (/is not a valid URL/i.test(cleaned)) return "올바른 URL 이 아닙니다.";
   if (/Unsupported URL/i.test(cleaned)) return "지원하지 않는 URL 입니다.";
+  if (/DRM/i.test(cleaned)) return "DRM 으로 보호된 영상은 받을 수 없습니다.";
   return cleaned.slice(0, 200);
 }
 
@@ -356,12 +386,17 @@ setInterval(() => {
 }, 30 * 60 * 1000);
 
 app.get("/api/health", (_req, res) => {
-  res.json({ ytDlp: !!YTDLP, ffmpeg: HAS_FFMPEG, jsRuntime: !!DENO_BIN });
+  res.json({
+    ytDlp: !!YTDLP,
+    ffmpeg: HAS_FFMPEG,
+    jsRuntime: !!DENO_BIN,
+    cookies: !!COOKIES_FILE,
+  });
 });
 
 app.listen(PORT, () => {
   console.log(`\n  youdown 서버 실행 중 → http://localhost:${PORT}`);
   console.log(
-    `  yt-dlp: ${YTDLP ? "OK" : "없음"} | ffmpeg: ${HAS_FFMPEG ? "OK" : "없음"} | JS런타임(deno): ${DENO_BIN ? "OK" : "없음"}\n`
+    `  yt-dlp: ${YTDLP ? "OK" : "없음"} | ffmpeg: ${HAS_FFMPEG ? "OK" : "없음"} | JS런타임(deno): ${DENO_BIN ? "OK" : "없음"} | 쿠키: ${COOKIES_FILE ? "OK" : "없음"}\n`
   );
 });

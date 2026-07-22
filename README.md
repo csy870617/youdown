@@ -57,6 +57,57 @@ youdown/
 
 `type` 은 `video` 또는 `audio`, `quality` 는 `best` / `1080` / `720` / `480` / `360` 입니다.
 
+## 온라인 배포 (GitHub → 클라우드 호스팅)
+
+> ⚠️ **GitHub Pages 로는 배포할 수 없습니다.** 이 앱은 서버(`yt-dlp` 실행)가
+> 필요하므로 정적 호스팅이 아닌 **컨테이너/서버 호스팅**이 필요합니다.
+> 저장소에 `Dockerfile` 이 포함되어 있어 아래 플랫폼 어디서든 배포됩니다.
+
+### Render (무료, 가장 간단)
+
+1. 이 저장소를 GitHub 에 올립니다.
+2. [render.com](https://render.com) → **New → Blueprint** → 이 저장소 선택.
+3. 저장소의 `render.yaml` 을 읽어 자동으로 빌드·배포합니다.
+4. 몇 분 뒤 `https://youdown-xxxx.onrender.com` 같은 공개 URL 이 생깁니다.
+
+> Railway, Fly.io, Google Cloud Run 등도 같은 `Dockerfile` 로 배포됩니다.
+
+### ⚠️ 배포 시 반드시 알아야 할 점 — 유튜브 봇 차단
+
+배포된 서버는 **데이터센터 IP** 를 쓰기 때문에 유튜브가 자주
+`Sign in to confirm you're not a bot` / `HTTP 403` 으로 **다운로드를 차단**합니다.
+이를 우회하려면 **로그인 상태의 쿠키**를 서버에 넣어줘야 합니다.
+
+1. 브라우저 확장([Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc) 등)으로
+   유튜브에 로그인한 상태의 `cookies.txt`(Netscape 형식)를 내보냅니다.
+2. base64 로 인코딩합니다.
+   ```bash
+   base64 -w0 cookies.txt        # 리눅스
+   base64 -i cookies.txt         # macOS
+   ```
+3. 호스팅 대시보드(Render → Environment)에서 환경변수를 추가합니다.
+   - `YTDLP_COOKIES_B64` = 위에서 얻은 base64 문자열
+   - 또는 파일을 직접 마운트할 수 있으면 `YTDLP_COOKIES_FILE=/path/cookies.txt`
+
+> 쿠키는 만료되면 다시 갱신해야 합니다. 부계정 사용을 권장합니다(계정이
+> 비정상 트래픽으로 제한될 수 있음). 쿠키 없이도 서버는 뜨지만, 유튜브
+> 영상 다운로드는 대부분 실패합니다.
+
+### 환경변수 정리
+
+| 변수 | 설명 |
+| --- | --- |
+| `PORT` | 서버 포트 (호스팅 플랫폼이 자동 주입, 기본 3000) |
+| `YTDLP_COOKIES_B64` | 쿠키 파일(cookies.txt) 내용을 base64 로 인코딩한 값 |
+| `YTDLP_COOKIES_FILE` | 쿠키 파일 경로 (파일 마운트가 가능한 환경용) |
+
+### 로컬에서 Docker 로 실행
+
+```bash
+docker build -t youdown .
+docker run -p 3000:3000 -e YTDLP_COOKIES_B64="$(base64 -w0 cookies.txt)" youdown
+```
+
 ## 주의 (저작권)
 
 이 도구는 개인적·합법적 용도로만 사용해야 합니다. 저작권이 있는 콘텐츠는

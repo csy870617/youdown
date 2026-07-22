@@ -1,0 +1,16 @@
+# Render 배포 설정 (Blueprint)
+# GitHub 저장소를 Render 에 연결하면 이 파일을 읽어 자동으로 배포합니다.
+# https://render.com → New → Blueprint → 이 저장소 선택
+services:
+  - type: web
+    name: youdown
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      # 유튜브 봇 차단 우회용 쿠키(선택). Render 대시보드에서 값을 직접 입력하세요.
+      # 로컬에서: base64 -w0 cookies.txt  결과를 붙여넣기.
+      - key: YTDLP_COOKIES_B64
+        sync: false
