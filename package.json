@@ -8,10 +8,10 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "build": "pkg . --out-path dist",
-    "build:linux": "pkg . --targets node22-linux-x64 --out-path dist",
-    "build:mac": "pkg . --targets node22-macos-x64 --out-path dist",
-    "build:win": "pkg . --targets node22-win-x64 --out-path dist"
+    "build": "pkg . --no-bytecode --public-packages \"*\" --public --out-path dist",
+    "build:linux": "pkg . --no-bytecode --public-packages \"*\" --public --targets node22-linux-x64 --out-path dist",
+    "build:mac": "pkg . --no-bytecode --public-packages \"*\" --public --targets node22-macos-x64 --out-path dist",
+    "build:win": "pkg . --no-bytecode --public-packages \"*\" --public --targets node22-win-x64 --out-path dist"
   },
   "engines": {
     "node": ">=18"
