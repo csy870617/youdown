@@ -21,8 +21,21 @@ const percentEl = $("percent");
 const barFill = $("bar-fill");
 const progressNote = $("progress-note");
 
+const statusEl = $("status");
+const statusText = $("status-text");
+
 let currentUrl = "";
 let selectedType = "video";
+
+// 상태 배너 (type: "loading" | "error" | "warn" | "")
+function setStatus(type, text) {
+  if (!text) {
+    statusEl.classList.add("hidden");
+    return;
+  }
+  statusEl.className = "status" + (type ? " " + type : "");
+  statusText.textContent = text;
+}
 
 // 준비 상태 폴링 (최초 실행 시 yt-dlp/ffmpeg 자동 설치 대기)
 function setReady(isReady) {
@@ -34,24 +47,21 @@ async function pollHealth() {
   try {
     const h = await (await fetch("/api/health")).json();
     if (h.bootError) {
-      $("env-note").textContent = "⚠ 준비 실패: " + h.bootError;
+      setStatus("error", "준비 실패 — " + h.bootError);
       setReady(false);
       return;
     }
     if (!h.ready) {
-      $("env-note").textContent =
-        "⏳ 최초 실행 준비 중 — " + (h.bootStatus || "구성요소 내려받는 중…");
+      setStatus("loading", h.bootStatus || "필수 구성요소를 준비하는 중…");
       setReady(false);
       setTimeout(pollHealth, 1000);
       return;
     }
-    // 준비 완료
     setReady(true);
     if (!h.ffmpeg) {
-      $("env-note").textContent =
-        "※ ffmpeg 이 없어 음원은 원본 오디오, 영상은 단일 스트림으로 제공됩니다.";
+      setStatus("warn", "ffmpeg 없음 — 음원은 원본 오디오, 영상은 단일 스트림으로 제공됩니다.");
     } else {
-      $("env-note").textContent = "";
+      setStatus("", "");
     }
   } catch {
     setTimeout(pollHealth, 1500);
@@ -101,10 +111,15 @@ urlForm.addEventListener("submit", async (e) => {
 
     currentUrl = url;
     thumb.src = data.thumbnail || "";
-    thumb.style.display = data.thumbnail ? "block" : "none";
+    thumb.style.visibility = data.thumbnail ? "visible" : "hidden";
     titleEl.textContent = data.title || "제목 없음";
-    uploaderEl.textContent = data.uploader ? "📺 " + data.uploader : "";
-    durationEl.textContent = data.duration ? "⏱ " + fmtDuration(data.duration) : "";
+    uploaderEl.textContent = data.uploader || "";
+    if (data.duration) {
+      durationEl.textContent = fmtDuration(data.duration);
+      durationEl.classList.remove("hidden");
+    } else {
+      durationEl.classList.add("hidden");
+    }
     preview.classList.remove("hidden");
   } catch (err) {
     showError(err.message);
