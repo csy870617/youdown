@@ -34,6 +34,9 @@ jobs:
       - name: Build executables (Windows / macOS / Linux)
         run: npm run build
 
+      - name: Package macOS .app (double-click 가능한 앱)
+        run: bash scripts/make-macos-app.sh dist/youdown-macos dist
+
       - name: List artifacts
         run: ls -la dist
 
@@ -50,6 +53,9 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
-          files: dist/*
+          files: |
+            dist/youdown-win.exe
+            dist/youdown-linux
+            dist/youdown-mac.zip
           fail_on_unmatched_files: true
           generate_release_notes: true

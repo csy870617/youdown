@@ -19,18 +19,24 @@ Node.js 같은 걸 설치할 필요 없이 **실행파일 하나만 내려받아
 
 1. **[Releases](../../releases)** 에서 내 OS 에 맞는 파일을 받습니다.
    - Windows → `youdown-win.exe`
-   - macOS → `youdown-macos`
+   - macOS → `youdown-mac.zip` (압축을 풀면 `youdown.app`)
    - Linux → `youdown-linux`
-2. 파일을 **더블클릭**(또는 실행)합니다.
+2. 실행합니다.
+   - Windows: `youdown-win.exe` **더블클릭**
+   - macOS: `youdown-mac.zip` 더블클릭해 압축 해제 → 나온 **`youdown.app` 더블클릭**
+   - Linux: 터미널에서 `chmod +x youdown-linux && ./youdown-linux`
 3. 잠시 뒤 브라우저가 열리면, 유튜브 링크를 붙여넣고 영상/음원을 받습니다.
 
 > **최초 실행 1회**만 필수 구성요소(yt-dlp·ffmpeg)를 자동으로 내려받습니다(수십 MB,
 > 인터넷 필요). 화면에 "최초 실행 준비 중" 이 표시되며, 끝나면 바로 사용할 수 있습니다.
 
-> **OS 보안 경고 안내**
+> **OS 보안 경고 안내** (서명되지 않은 개인 배포라 나타나는 정상 경고)
 > - Windows: "Windows의 PC 보호" 창이 뜨면 → **추가 정보 → 실행**.
-> - macOS: "확인되지 않은 개발자" 경고 시 → 파일 **우클릭 → 열기**, 또는
->   `chmod +x youdown-macos` 후 실행. (서명되지 않은 배포라 나타나는 정상 경고입니다.)
+> - macOS: `youdown.app` 을 **우클릭(Control+클릭) → 열기** → 다시 **열기**.
+>   또는 **시스템 설정 → 개인정보 보호 및 보안** 하단의 **"확인 없이 열기"**.
+
+> **문제 진단**: 앱 실행 중 생기는 모든 기록은 `~/.youdown/youdown.log` 파일에
+> 남습니다(터미널 없이도 확인 가능). 문제가 생기면 이 파일을 열어보세요.
 
 ## 개발자용 실행 (소스에서)
 
