@@ -30,7 +30,8 @@ cat > "$APP/Contents/MacOS/youdown" <<'SH'
 #!/bin/bash
 DIR="$(cd "$(dirname "$0")" && pwd)"
 mkdir -p "$HOME/.youdown"
-exec "$DIR/youdown-bin" >> "$HOME/.youdown/youdown.log" 2>&1
+# 실행 때마다 새로 기록 (로그 파일 무한 증가 방지)
+exec "$DIR/youdown-bin" > "$HOME/.youdown/youdown.log" 2>&1
 SH
 chmod +x "$APP/Contents/MacOS/youdown"
 

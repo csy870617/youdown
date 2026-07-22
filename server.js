@@ -63,7 +63,8 @@ function rebuildCommonArgs() {
   if (DENO_BIN) args.push("--js-runtimes", "deno");
   if (FFMPEG_DIR) args.push("--ffmpeg-location", FFMPEG_DIR);
   if (COOKIES_FILE) args.push("--cookies", COOKIES_FILE);
-  args.push("--retries", "5", "--fragment-retries", "5");
+  // 멈춘 연결을 일정 시간 후 끊어 무한 대기를 방지
+  args.push("--socket-timeout", "30", "--retries", "5", "--fragment-retries", "5");
   COMMON_ARGS = args;
 
   YT_ENV = { ...process.env };
@@ -131,20 +132,38 @@ app.post("/api/info", (req, res) => {
   if (!looksLikeUrl(url))
     return res.status(400).json({ error: "올바른 URL 을 입력하세요." });
 
+  // 응답은 한 번만 (error·close·timeout 이 중복 전송하지 않도록 가드)
+  let responded = false;
+  let timer = null;
+  const respond = (code, body) => {
+    if (responded || res.headersSent) return;
+    responded = true;
+    if (timer) clearTimeout(timer);
+    res.status(code).json(body);
+  };
+
   const args = [...COMMON_ARGS, "-J", "--no-playlist", "--no-warnings", url];
   const child = spawn(YTDLP, args, { env: YT_ENV });
   let out = "";
   let err = "";
   child.stdout.on("data", (d) => (out += d));
   child.stderr.on("data", (d) => (err += d));
+
+  // 응답이 무한정 지연되지 않도록 60초 후 종료
+  timer = setTimeout(() => {
+    child.kill("SIGKILL");
+    respond(504, { error: "정보 조회 시간이 초과되었습니다. 다시 시도해 주세요." });
+  }, 60_000);
+
   child.on("error", () =>
-    res.status(500).json({ error: "yt-dlp 실행에 실패했습니다." })
+    respond(500, { error: "yt-dlp 실행에 실패했습니다." })
   );
   child.on("close", (code) => {
-    if (code !== 0) return res.status(400).json({ error: parseYtError(err) });
+    if (responded) return;
+    if (code !== 0) return respond(400, { error: parseYtError(err) });
     try {
       const info = JSON.parse(out);
-      res.json({
+      respond(200, {
         id: info.id,
         title: info.title,
         uploader: info.uploader || info.channel || "",
@@ -152,7 +171,7 @@ app.post("/api/info", (req, res) => {
         thumbnail: info.thumbnail || "",
       });
     } catch {
-      res.status(500).json({ error: "정보를 해석하지 못했습니다." });
+      respond(500, { error: "정보를 해석하지 못했습니다." });
     }
   });
 });
@@ -216,6 +235,7 @@ app.post("/api/jobs", (req, res) => {
     job.status = "error";
     job.error = "yt-dlp 실행에 실패했습니다.";
     emit(job);
+    cleanupLater(job);
   });
 
   child.on("close", (code) => {
