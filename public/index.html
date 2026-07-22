@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>youdown · 유튜브 영상/음원 다운로더</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap"
+    />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="hero">
+        <div class="logo">▶ youdown</div>
+        <h1>유튜브 링크로<br />영상 · 음원 저장</h1>
+        <p class="sub">링크를 붙여넣고 원하는 형식을 고르면 끝.</p>
+      </header>
+
+      <section class="card">
+        <form id="url-form" class="input-row" autocomplete="off">
+          <input
+            id="url"
+            type="url"
+            placeholder="https://www.youtube.com/watch?v=..."
+            required
+          />
+          <button id="fetch-btn" type="submit">불러오기</button>
+        </form>
+        <p id="input-error" class="error hidden"></p>
+      </section>
+
+      <section id="preview" class="card preview hidden">
+        <img id="thumb" alt="썸네일" />
+        <div class="meta">
+          <h2 id="title"></h2>
+          <p id="uploader"></p>
+          <p id="duration"></p>
+
+          <div class="options">
+            <div class="opt-group">
+              <span class="opt-label">형식</span>
+              <div class="segmented" id="type-seg">
+                <button type="button" class="seg active" data-type="video">🎬 영상 (MP4)</button>
+                <button type="button" class="seg" data-type="audio">🎵 음원 (MP3)</button>
+              </div>
+            </div>
+
+            <div class="opt-group" id="quality-group">
+              <span class="opt-label">화질</span>
+              <select id="quality">
+                <option value="best">최고 화질</option>
+                <option value="1080">1080p</option>
+                <option value="720" selected>720p</option>
+                <option value="480">480p</option>
+                <option value="360">360p</option>
+              </select>
+            </div>
+          </div>
+
+          <button id="download-btn" class="primary">다운로드</button>
+        </div>
+      </section>
+
+      <section id="progress" class="card progress hidden">
+        <div class="progress-head">
+          <span id="stage">준비 중</span>
+          <span id="percent">0%</span>
+        </div>
+        <div class="bar"><div id="bar-fill" class="bar-fill"></div></div>
+        <p id="progress-note" class="note"></p>
+      </section>
+
+      <footer class="foot">
+        <p id="env-note"></p>
+        <p class="disclaimer">
+          저작권이 있는 콘텐츠는 저작권자의 허락 또는 정당한 권리 범위 내에서만
+          내려받으세요. 본 도구는 개인적·합법적 용도로만 사용해야 합니다.
+        </p>
+      </footer>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
