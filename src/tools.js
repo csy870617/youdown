@@ -39,6 +39,21 @@ function run(cmd, args) {
   });
 }
 
+// 아카이브 압축 해제. tar(bsdtar)는 zip·tar.xz 모두 처리하지만, 리눅스
+// GNU tar 는 zip 을 못 풀므로 그때는 unzip 으로 대체.
+async function extract(archive, dir) {
+  try {
+    await run("tar", ["-xf", archive, "-C", dir]);
+    return;
+  } catch {
+    if (archive.endsWith(".zip")) {
+      await run("unzip", ["-o", "-q", archive, "-d", dir]);
+      return;
+    }
+    throw new Error("압축 해제에 실패했습니다.");
+  }
+}
+
 // 리다이렉트를 따라가며 파일 다운로드 (진행률 콜백 지원)
 function download(url, dest, onProgress, redirects = 0) {
   return new Promise((resolve, reject) => {
@@ -108,9 +123,25 @@ function ytdlpUrl() {
   return base + "yt-dlp_linux";
 }
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
 async function resolveYtDlp(log) {
   const cached = path.join(BIN_DIR, ytdlpName());
-  if (fs.existsSync(cached)) return cached;
+  if (fs.existsSync(cached)) {
+    // 오래된 캐시는 갱신 (YouTube 변경으로 인한 실패 방지). 실패 시 기존 것 사용.
+    if (Date.now() - fs.statSync(cached).mtimeMs > WEEK_MS) {
+      try {
+        log("yt-dlp 업데이트 중…");
+        const tmp = cached + ".new";
+        await download(ytdlpUrl(), tmp);
+        if (!isWin) fs.chmodSync(tmp, 0o755);
+        fs.renameSync(tmp, cached);
+      } catch {
+        /* 갱신 실패 시 기존 캐시 사용 */
+      }
+    }
+    return cached;
+  }
   if (onPath("yt-dlp")) return "yt-dlp";
   ensureDirs();
   log("yt-dlp 내려받는 중…");
@@ -125,12 +156,14 @@ async function resolveYtDlp(log) {
 function ffmpegBinName() {
   return isWin ? "ffmpeg.exe" : "ffmpeg";
 }
-// 플랫폼별 ffmpeg(+ffprobe) 아카이브 목록. mac 은 ffprobe 가 별도 배포됨.
+// 플랫폼별 ffmpeg(+ffprobe) 아카이브 목록.
+// 리눅스·윈도우는 GitHub(BtbN) 정적 빌드(ffmpeg+ffprobe 포함), mac 은
+// evermeet(ffmpeg·ffprobe 별도). GitHub 직배포라 안정적이다.
 function ffmpegArchives() {
+  const btbn =
+    "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/";
   if (isWin) {
-    return [
-      { url: "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip", ext: "zip" },
-    ];
+    return [{ url: btbn + "ffmpeg-master-latest-win64-gpl.zip", ext: "zip" }];
   }
   if (isMac) {
     return [
@@ -138,12 +171,9 @@ function ffmpegArchives() {
       { url: "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip", ext: "zip" },
     ];
   }
-  const a = arch === "arm64" ? "arm64" : "amd64";
+  const target = arch === "arm64" ? "linuxarm64" : "linux64";
   return [
-    {
-      url: `https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-${a}-static.tar.xz`,
-      ext: "tar.xz",
-    },
+    { url: btbn + `ffmpeg-master-latest-${target}-gpl.tar.xz`, ext: "tar.xz" },
   ];
 }
 
@@ -180,11 +210,8 @@ async function resolveFfmpeg(log) {
       log(`ffmpeg 내려받는 중… ${Math.round(p * 100)}%`)
     );
     log("ffmpeg 설치 중…");
-    // tar(bsdtar) 는 zip · tar.xz 모두 처리 (Win10 1803+, macOS, Linux 기본 제공)
-    // 동기 spawnSync 대신 비동기 spawn 으로 이벤트 루프를 막지 않음
-    await run("tar", ["-xf", archive, "-C", extractDir]).catch(() => {
-      throw new Error("압축 해제(tar)에 실패했습니다.");
-    });
+    // 비동기 압축 해제로 이벤트 루프를 막지 않음
+    await extract(archive, extractDir);
     fs.rmSync(archive, { force: true });
   }
 
@@ -202,17 +229,66 @@ async function resolveFfmpeg(log) {
   return BIN_DIR;
 }
 
-// ------- JS 런타임(deno, 선택) -------
-function resolveDeno() {
-  const candidates = [
+// ------- JS 런타임(deno) -------
+// 유튜브 영상 URL 서명(n 파라미터) 해독에 필요. 없으면 미디어 다운로드가
+// 403 으로 거부되므로, 없으면 자동으로 내려받는다.
+function denoName() {
+  return isWin ? "deno.exe" : "deno";
+}
+function denoUrl() {
+  const base =
+    "https://github.com/denoland/deno/releases/latest/download/";
+  if (isWin) return base + "deno-x86_64-pc-windows-msvc.zip";
+  if (isMac)
+    return (
+      base +
+      (arch === "arm64"
+        ? "deno-aarch64-apple-darwin.zip"
+        : "deno-x86_64-apple-darwin.zip")
+    );
+  return (
+    base +
+    (arch === "arm64"
+      ? "deno-aarch64-unknown-linux-gnu.zip"
+      : "deno-x86_64-unknown-linux-gnu.zip")
+  );
+}
+
+async function resolveDeno(log) {
+  // 1) 캐시/시스템에 이미 있으면 사용
+  const cachedDeno = path.join(BIN_DIR, denoName());
+  if (fs.existsSync(cachedDeno)) return cachedDeno;
+  const systemCandidates = [
     process.env.DENO_BIN,
-    "deno",
-    path.join(os.homedir(), ".deno", "bin", "deno"),
-    path.join(BIN_DIR, isWin ? "deno.exe" : "deno"),
+    path.join(os.homedir(), ".deno", "bin", denoName()),
   ].filter(Boolean);
-  for (const bin of candidates) {
-    const r = spawnSync(bin, ["--version"], { encoding: "utf8" });
-    if (!r.error) return bin;
+  for (const bin of systemCandidates) {
+    if (fs.existsSync(bin)) return bin;
+  }
+  if (onPath("deno")) return "deno";
+
+  // 2) 없으면 자동 다운로드 (실패해도 앱은 계속 동작)
+  try {
+    ensureDirs();
+    log("유튜브 처리용 구성요소(deno) 내려받는 중…");
+    const archive = path.join(TMP_DIR, "deno.zip");
+    await download(denoUrl(), archive, (p) =>
+      log(`deno 내려받는 중… ${Math.round(p * 100)}%`)
+    );
+    const extractDir = path.join(TMP_DIR, "deno-extract");
+    fs.rmSync(extractDir, { recursive: true, force: true });
+    fs.mkdirSync(extractDir, { recursive: true });
+    await extract(archive, extractDir);
+    const src = findFileRecursive(extractDir, denoName());
+    if (src) {
+      fs.copyFileSync(src, cachedDeno);
+      if (!isWin) fs.chmodSync(cachedDeno, 0o755);
+    }
+    fs.rmSync(archive, { force: true });
+    fs.rmSync(extractDir, { recursive: true, force: true });
+    if (fs.existsSync(cachedDeno)) return cachedDeno;
+  } catch (e) {
+    log("deno 준비를 건너뜁니다: " + (e.message || e));
   }
   return null;
 }
@@ -221,7 +297,7 @@ function resolveDeno() {
 export async function ensureTools(log = () => {}) {
   const ytdlp = await resolveYtDlp(log);
   const ffmpegDir = await resolveFfmpeg(log); // 경로(dir) 또는 null(시스템 PATH)
-  const deno = resolveDeno();
+  const deno = await resolveDeno(log);
   return {
     ytdlp,
     ffmpegDir,
