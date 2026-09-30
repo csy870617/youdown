@@ -1,6 +1,6 @@
 {
   "name": "youdown",
-  "version": "1.3.0",
+  "version": "1.3.1",
   "description": "YouTube 영상/음원 다운로더 - 링크만 입력하면 영상 또는 음원으로 저장",
   "type": "module",
   "main": "server.js",
