@@ -368,3 +368,16 @@ function trackJob(jobId) {
     }
   };
 }
+
+// 라이트/다크 모드 전환 (기본 라이트, 선택은 기억)
+document.getElementById("theme").addEventListener("click", () => {
+  const root = document.documentElement;
+  const dark = root.dataset.theme !== "dark";
+  if (dark) root.dataset.theme = "dark";
+  else delete root.dataset.theme;
+  try {
+    localStorage.setItem("youdown-theme", dark ? "dark" : "light");
+  } catch {
+    /* 저장 불가 환경이면 이번 화면에만 적용 */
+  }
+});
