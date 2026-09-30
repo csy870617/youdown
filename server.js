@@ -684,7 +684,11 @@ const AUTO_OPEN = process.env.YOUDOWN_NO_OPEN !== "1";
   const server = app.listen(port, host, () => {
     const url = `http://${IS_DESKTOP ? "127.0.0.1" : "localhost"}:${port}`;
     console.log(`\n  youdown ${VERSION} 실행 중 → ${url}`);
-    console.log("  브라우저 탭을 닫으면 잠시 후 자동으로 종료됩니다.\n");
+    console.log(
+      process.platform === "win32" && IS_DESKTOP
+        ? "  이 창을 닫으면 youdown 이 종료됩니다. (브라우저 탭을 닫아도 잠시 후 자동 종료)\n"
+        : "  브라우저 탭을 닫으면 잠시 후 자동으로 종료됩니다.\n"
+    );
     if (IS_DESKTOP) {
       try {
         fs.writeFileSync(INSTANCE_FILE, JSON.stringify({ pid: process.pid, port }));

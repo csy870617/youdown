@@ -117,6 +117,25 @@
       details[open] summary::before { content: "–"; }
       details p { margin: 8px 0 0 18px; font-size: 13.5px; color: var(--text-2); }
 
+      .choose { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .os-btn { display: flex; flex-direction: column; align-items: center; justify-content: center;
+        gap: 10px; padding: 22px 12px; border-radius: 18px; cursor: pointer; font-family: inherit;
+        background: var(--surface-2); border: 1.5px solid var(--border-strong); color: var(--text);
+        transition: border-color 0.16s, transform 0.08s, box-shadow 0.16s; }
+      .os-btn:hover { border-color: var(--accent); }
+      .os-btn:active { transform: translateY(1px); }
+      .os-btn svg { width: 34px; height: 34px; }
+      .os-btn .t { font-size: 16px; font-weight: 700; }
+      .os-btn .d { font-size: 12px; color: var(--muted); }
+      .os-btn.active { border-color: var(--accent); background: rgba(255, 71, 71, 0.08);
+        box-shadow: 0 10px 24px -12px rgba(255, 71, 71, 0.6); }
+      .os-btn.active .d { color: var(--accent-2); }
+      .guide { animation: fade 0.25s ease; }
+      @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      .dl-again { font-size: 12.5px; color: var(--muted); margin: 12px 0 0; }
+      .dl-again a { color: var(--text-2); }
+      .kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius: 6px;
+        border: 1px solid var(--border-strong); background: var(--surface-2); }
       .mobile { text-align: center; }
       .mobile p { color: var(--text-2); margin: 0 0 14px; }
 
@@ -134,22 +153,25 @@
         <p class="sub">유튜브 링크만 붙여넣으면 영상(MP4)·음원(MP3)으로 저장</p>
       </header>
 
-      <!-- 컴퓨터용: 다운로드 버튼 -->
+      <!-- 컴퓨터 선택 -->
       <section id="desktop" class="card">
-        <a id="dl-btn" class="btn" href="#">
-          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
-            <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" stroke-width="2"
-              stroke-linecap="round" stroke-linejoin="round" />
-          </svg>
-          <span id="dl-label">다운로드</span>
-        </a>
-        <p id="dl-meta" class="btn-meta">무료 · 설치 후 바로 사용</p>
-        <p class="others">
-          다른 컴퓨터용:
-          <a href="#" data-os="mac">Mac</a> ·
-          <a href="#" data-os="win">Windows</a> ·
-          <a href="https://github.com/csy870617/youdown/releases/latest/download/youdown-linux">Linux</a>
-        </p>
+        <h2 style="text-align:center;margin-bottom:16px">사용하는 컴퓨터를 골라 주세요</h2>
+        <div class="choose">
+          <button class="os-btn" type="button" data-os="mac" aria-controls="guide-mac">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M16.37 12.6c-.02-2.22 1.82-3.29 1.9-3.34-1.04-1.52-2.65-1.73-3.22-1.75-1.37-.14-2.68.81-3.37.81-.7 0-1.77-.79-2.91-.77-1.5.02-2.88.87-3.65 2.21-1.56 2.7-.4 6.7 1.12 8.89.74 1.07 1.62 2.27 2.78 2.23 1.12-.05 1.54-.72 2.89-.72 1.35 0 1.73.72 2.91.7 1.2-.02 1.96-1.09 2.7-2.17.85-1.24 1.2-2.44 1.22-2.5-.03-.01-2.34-.9-2.37-3.59zM14.15 6.07c.62-.75 1.03-1.78.92-2.82-.89.04-1.97.59-2.61 1.34-.57.66-1.07 1.72-.94 2.73.99.08 2.01-.5 2.63-1.25z"/>
+            </svg>
+            <span class="t">Mac</span>
+            <span class="d">터미널 한 줄로 설치</span>
+          </button>
+          <button class="os-btn" type="button" data-os="win" aria-controls="guide-win">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M3 5.55l7.37-1v7.12H3V5.55zm0 12.9l7.37 1.02v-7.04H3v6.02zm8.18 1.13L21 21v-8.49h-9.82v7.07zm0-15.16v7.25H21V3l-9.82 1.42z"/>
+            </svg>
+            <span class="t">Windows</span>
+            <span class="d">실행 파일 받기</span>
+          </button>
+        </div>
       </section>
 
       <!-- 휴대폰에서 열었을 때 -->
@@ -158,45 +180,41 @@
         <button id="copy-link" class="btn" type="button">링크 복사하기</button>
       </section>
 
-      <!-- Mac 설치 방법 -->
-      <section id="steps-mac" class="card hidden">
+      <!-- Mac 안내 -->
+      <section id="guide-mac" class="card guide hidden">
         <h2>Mac 설치 방법</h2>
         <ol class="steps">
-          <li>받은 <b>youdown-mac.dmg</b> 를 열고, youdown 아이콘을 <b>응용 프로그램</b> 폴더로 끌어다 놓아요.</li>
-          <li><b>응용 프로그램</b>(또는 Launchpad)에서 youdown 을 실행해요.</li>
+          <li><b>터미널</b>을 열어요. <span class="kbd">⌘</span> + <span class="kbd">스페이스</span> 를 누르고 <b>터미널</b>을 입력한 뒤 <span class="kbd">Enter</span></li>
           <li>
-            처음 한 번은 <b>"확인할 수 없음"</b> 창이 떠요. <b>완료</b>를 누른 뒤
-            <b>시스템 설정 → 개인정보 보호 및 보안</b> 맨 아래의 <b>"그래도 열기"</b>를 누르세요.
-            <p class="note">macOS 14 이하라면 youdown 을 <b>Control+클릭 → 열기</b> 로도 돼요. 서명 비용이 드는 인증을 받지 않은 앱이라 나오는 안내예요.</p>
+            아래 명령을 <b>복사</b>해서 터미널에 <b>붙여넣고</b> <span class="kbd">Enter</span>
+            <div class="cmd">
+              <code id="mac-cmd">curl -fsSL https://raw.githubusercontent.com/csy870617/youdown/HEAD/scripts/install-mac.sh | bash</code>
+              <button class="copy" type="button" data-copy="mac-cmd">복사</button>
+            </div>
           </li>
-          <li>브라우저가 자동으로 열리면 끝! 처음 한 번만 필요한 준비(1~3분) 후 바로 쓸 수 있어요.</li>
+          <li>설치가 끝나면 youdown 이 실행되고 <b>브라우저가 자동으로 열려요.</b> 처음 한 번만 준비(1~3분) 후 바로 쓸 수 있어요.</li>
+          <li>다음부터는 <b>Launchpad</b> 나 <b>Spotlight</b>(<span class="kbd">⌘</span>+<span class="kbd">스페이스</span>)에서 <b>youdown</b> 으로 실행하세요.</li>
         </ol>
+        <p class="note">보안 경고 없이 설치돼요. 새 버전이 나오면 같은 명령을 다시 실행하면 업데이트됩니다.</p>
       </section>
 
-      <section id="fast-mac" class="card fast hidden">
-        <h2>경고 없이 더 빠르게 <span class="badge">추천</span></h2>
-        <p class="note" style="margin:0">
-          <b>터미널</b>(⌘+스페이스 → "터미널")에 아래 한 줄을 붙여넣고 Enter —
-          설치부터 실행까지 자동으로 끝나요. 보안 경고도 뜨지 않아요.
-        </p>
-        <div class="cmd">
-          <code id="mac-cmd">curl -fsSL https://raw.githubusercontent.com/csy870617/youdown/HEAD/scripts/install-mac.sh | bash</code>
-          <button class="copy" type="button" data-copy="mac-cmd">복사</button>
-        </div>
-      </section>
-
-      <!-- Windows 설치 방법 -->
-      <section id="steps-win" class="card hidden">
-        <h2>Windows 설치 방법</h2>
+      <!-- Windows 안내 -->
+      <section id="guide-win" class="card guide hidden">
+        <h2>Windows 사용 방법</h2>
         <ol class="steps">
-          <li>받은 <b>youdown-setup.exe</b> 를 실행해요.</li>
+          <li>
+            <b>youdown-win.exe</b> 다운로드가 시작돼요.
+            <p class="note">브라우저가 "일반적으로 다운로드되지 않는 파일"이라고 막으면 <b>… → 유지</b>를 눌러 주세요.</p>
+          </li>
+          <li>받은 파일(다운로드 폴더)을 <b>더블클릭</b>해서 실행해요.</li>
           <li>
             <b>"Windows의 PC 보호"</b> 창이 뜨면 <b>추가 정보 → 실행</b>을 누르세요.
-            <p class="note">서명 비용이 드는 인증을 받지 않은 프로그램이라 나오는 안내예요.</p>
+            <p class="note">서명 비용이 드는 인증을 받지 않은 프로그램이라 처음 한 번 나오는 안내예요.</p>
           </li>
-          <li>설치가 끝나면 youdown 이 바로 실행되고 브라우저가 열려요. 다음부터는 <b>바탕화면의 youdown 아이콘</b>으로 실행하세요.</li>
+          <li>브라우저가 자동으로 열리면 끝! 함께 뜨는 <b>검은 창을 닫으면</b> youdown 이 종료돼요.</li>
         </ol>
-        <p class="note">설치 없이 쓰고 싶다면 <a href="https://github.com/csy870617/youdown/releases/latest/download/youdown-win.exe">실행 파일만 받기</a></p>
+        <p class="note">설치할 필요 없이 이 파일 하나로 실행돼요. 파일을 바탕화면에 옮겨 두면 편해요.</p>
+        <p class="dl-again">다운로드가 시작되지 않았나요? <a id="win-link" href="#">여기를 눌러 다시 받기</a></p>
       </section>
 
       <section class="card">
@@ -207,15 +225,15 @@
         </details>
         <details>
           <summary>어떻게 종료하나요?</summary>
-          <p>브라우저 탭을 닫으면 10분쯤 뒤 자동으로 종료돼요. 다시 쓰려면 youdown 아이콘을 누르면 됩니다. 이미 켜져 있을 때 아이콘을 누르면 창만 다시 열려요.</p>
+          <p>브라우저 탭을 닫으면 10분쯤 뒤 자동으로 종료돼요. Windows 는 함께 뜬 검은 창을 닫아도 돼요. 이미 켜져 있을 때 다시 실행하면 창만 다시 열려요.</p>
         </details>
         <details>
           <summary>새 버전은 어떻게 받나요?</summary>
-          <p>이 페이지에서 다시 내려받아 설치하면 덮어쓰기로 업데이트돼요. 유튜브 변화에 대응하는 다운로드 엔진은 앱이 알아서 최신으로 유지해요.</p>
+          <p>Mac 은 같은 설치 명령을 다시 실행하고, Windows 는 이 페이지에서 파일을 다시 받으면 돼요. 유튜브 변화에 대응하는 다운로드 엔진은 앱이 알아서 최신으로 유지해요.</p>
         </details>
         <details>
           <summary>삭제하려면?</summary>
-          <p>Mac: 응용 프로그램에서 youdown 을 휴지통으로 옮기고, 홈 폴더의 숨김 폴더 <code>.youdown</code> 도 지우면 완전히 삭제돼요. Windows: 설정 → 앱에서 youdown 을 제거하세요.</p>
+          <p>Mac: 응용 프로그램에서 youdown 을 휴지통으로 옮기세요. Windows: 받은 youdown-win.exe 파일을 지우면 돼요. 앱이 받아 둔 구성요소는 홈 폴더의 숨김 폴더 <code>.youdown</code> 에 있으니 함께 지우면 완전히 삭제돼요.</p>
         </details>
       </section>
 
@@ -228,48 +246,39 @@
     </main>
 
     <script>
-      const REL = "https://github.com/csy870617/youdown/releases/latest/download/";
-      const FILES = {
-        mac: { url: REL + "youdown-mac.dmg", label: "Mac용 다운로드", meta: "Apple Silicon · Intel 모두 지원" },
-        win: { url: REL + "youdown-setup.exe", label: "Windows용 다운로드", meta: "Windows 10 · 11" },
-      };
+      const WIN_URL = "https://github.com/csy870617/youdown/releases/latest/download/youdown-win.exe";
+      const $ = (id) => document.getElementById(id);
+      $("win-link").href = WIN_URL;
 
-      function detect() {
+      function isMobile() {
         const ua = navigator.userAgent || "";
-        const plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
-        const mobile =
-          /Android|iPhone|iPod/i.test(ua) ||
-          (/iPad/.test(ua) || (plat === "MacIntel" && navigator.maxTouchPoints > 1));
-        if (mobile) return "mobile";
-        if (/Win/i.test(plat) || /Windows/i.test(ua)) return "win";
-        if (/Mac/i.test(plat) || /Mac OS X/i.test(ua)) return "mac";
-        if (/Linux/i.test(plat)) return "linux";
-        return "win";
+        return /Android|iPhone|iPod|iPad/i.test(ua) ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
       }
 
-      function show(os) {
-        const $ = (id) => document.getElementById(id);
-        $("desktop").classList.toggle("hidden", os === "mobile");
-        $("mobile").classList.toggle("hidden", os !== "mobile");
-        const isMac = os === "mac";
-        $("steps-mac").classList.toggle("hidden", !isMac);
-        $("fast-mac").classList.toggle("hidden", !isMac);
-        $("steps-win").classList.toggle("hidden", os !== "win");
-        const f = FILES[os] || (os === "linux"
-          ? { url: REL + "youdown-linux", label: "Linux용 다운로드", meta: "x64 · 실행 권한을 준 뒤 실행" }
-          : FILES.win);
-        $("dl-btn").href = f.url;
-        $("dl-label").textContent = f.label;
-        $("dl-meta").textContent = f.meta;
+      // 숨은 프레임으로 받아서 페이지를 벗어나지 않게 함
+      function startWinDownload() {
+        let f = document.getElementById("dl-frame");
+        if (!f) {
+          f = document.createElement("iframe");
+          f.id = "dl-frame"; f.style.display = "none";
+          document.body.appendChild(f);
+        }
+        f.src = WIN_URL;
       }
 
-      document.querySelectorAll("[data-os]").forEach((a) =>
-        a.addEventListener("click", (e) => {
-          e.preventDefault();
-          show(a.dataset.os);
-          window.scrollTo({ top: 0, behavior: "smooth" });
-        })
-      );
+      function select(os, { download = false } = {}) {
+        document.querySelectorAll(".os-btn").forEach((b) =>
+          b.classList.toggle("active", b.dataset.os === os));
+        $("guide-mac").classList.toggle("hidden", os !== "mac");
+        $("guide-win").classList.toggle("hidden", os !== "win");
+        if (os === "win" && download) startWinDownload(); // 누르면 바로 다운로드 시작
+        const g = $(os === "mac" ? "guide-mac" : "guide-win");
+        setTimeout(() => g.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
+      }
+
+      document.querySelectorAll(".os-btn").forEach((b) =>
+        b.addEventListener("click", () => select(b.dataset.os, { download: true })));
 
       async function copyText(text, btn) {
         try {
@@ -285,20 +294,18 @@
         setTimeout(() => (btn.textContent = old), 1600);
       }
       document.querySelectorAll("[data-copy]").forEach((b) =>
-        b.addEventListener("click", () => copyText(document.getElementById(b.dataset.copy).textContent.trim(), b))
-      );
-      document.getElementById("copy-link").addEventListener("click", (e) =>
-        copyText(location.href, e.currentTarget)
-      );
+        b.addEventListener("click", () => copyText($(b.dataset.copy).textContent.trim(), b)));
+      $("copy-link").addEventListener("click", (e) => copyText(location.href, e.currentTarget));
 
-      show(detect());
+      if (isMobile()) {
+        $("desktop").classList.add("hidden");
+        $("mobile").classList.remove("hidden");
+      }
 
       // 최신 버전 번호 표시 (실패해도 페이지는 그대로 동작)
       fetch("https://api.github.com/repos/csy870617/youdown/releases/latest")
         .then((r) => (r.ok ? r.json() : null))
-        .then((j) => {
-          if (j && j.tag_name) document.getElementById("ver").textContent = "릴리스 " + j.tag_name;
-        })
+        .then((j) => { if (j && j.tag_name) $("ver").textContent = "릴리스 " + j.tag_name; })
         .catch(() => {});
     </script>
   </body>

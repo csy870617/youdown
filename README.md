@@ -17,30 +17,23 @@
 
 ### 👉 [다운로드 페이지](https://csy870617.github.io/youdown/) — 이 링크 하나만 공유하세요
 
-내 컴퓨터(Mac/Windows)를 자동으로 알아보고, 맞는 설치 파일과 설치 방법을 보여 줍니다.
-
-| 컴퓨터 | 설치 |
-|---|---|
-| **Mac** (Apple Silicon·Intel) | `youdown-mac.dmg` 열기 → youdown 을 **응용 프로그램**으로 끌어다 놓기 → 실행 |
-| **Windows** 10·11 | `youdown-setup.exe` 실행 → 끝나면 바로 실행, 이후 **바탕화면 아이콘**으로 사용 |
-| Linux | `youdown-linux` 에 실행 권한 준 뒤 실행 |
-
-**Mac — 경고 없이 한 줄 설치** (터미널에 붙여넣기):
+**Mac** — 터미널(⌘+스페이스 → "터미널")에 붙여넣고 Enter. 설치 후 바로 실행됩니다.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/csy870617/youdown/HEAD/scripts/install-mac.sh | bash
 ```
 
+다음부터는 Launchpad·Spotlight 에서 **youdown** 으로 실행. 보안 경고 없이 설치되며, 같은 명령을 다시 실행하면 업데이트됩니다.
+
+**Windows** — [`youdown-win.exe`](https://github.com/csy870617/youdown/releases/latest/download/youdown-win.exe) 를 받아 더블클릭. 설치 과정 없이 바로 실행됩니다.
+("Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**. 함께 뜨는 검은 창을 닫으면 종료)
+
 사용 방법:
 - 실행하면 **브라우저가 자동으로 열립니다.** 링크를 붙여넣고 영상/음원을 받으세요.
 - **처음 한 번만** 필요한 구성요소(yt-dlp·ffmpeg·deno, 약 200MB)를 자동으로 받습니다(1~3분).
-- 이미 켜져 있을 때 아이콘을 다시 누르면 **창만 다시 열립니다.**
+- 이미 켜져 있을 때 다시 실행하면 **창만 다시 열립니다.**
 - **브라우저 탭을 닫으면** 약 10분 뒤 **자동으로 종료**됩니다.
 - 문제가 생기면 `~/.youdown/youdown.log` 를 확인하세요.
-
-> **보안 안내가 뜨는 이유:** 유료 인증서로 서명하지 않은 개인 배포라서입니다.
-> Mac 은 **시스템 설정 → 개인정보 보호 및 보안 → "그래도 열기"**, Windows 는
-> **추가 정보 → 실행**을 누르면 됩니다. (Mac 한 줄 설치는 이 안내가 뜨지 않습니다.)
 
 ## 개발자용 실행 (소스에서)
 
@@ -63,8 +56,8 @@ npm run build          # dist/ 에 3개 OS 실행파일 생성
 # 또는 특정 OS만: npm run build:win / build:mac / build:linux
 ```
 
-> Actions 의 **Release** 워크플로를 실행하면(또는 `v1.1.0` 같은 태그 푸시) Mac(.dmg·.zip),
-> Windows(설치 프로그램·.exe), Linux 파일을 만들고 **실제 macOS·Windows·Linux 러너에
+> Actions 의 **Release** 워크플로를 실행하면(또는 `v1.1.0` 같은 태그 푸시) Mac(한 줄 설치용 .zip)·
+> Windows(.exe) 파일을 만들고 **실제 macOS·Windows 러너에
 > 설치해 도구 자동 설치와 변환까지 테스트한 뒤**, 통과하면 Releases 에 올립니다.
 > 다운로드 페이지(`site/`)는 `pages.yml` 로 GitHub Pages 에 배포됩니다.
 

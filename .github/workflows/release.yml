@@ -1,8 +1,8 @@
 name: Release
 
-# 설치 파일을 만들고, 실제 macOS·Windows·Linux 컴퓨터(러너)에 설치해
-# 도구 자동 설치와 실제 변환까지 테스트한 뒤, 모두 통과해야 릴리스한다.
-#  - v로 시작하는 태그를 푸시하거나 (예: v1.1.0)
+# Mac(터미널 한 줄 설치용 zip)·Windows(실행 파일)를 만들고, 실제 macOS·Windows
+# 컴퓨터(러너)에서 설치·도구 자동 설치·실제 변환까지 테스트한 뒤 통과하면 릴리스.
+#  - v로 시작하는 태그를 푸시하거나 (예: v1.2.0)
 #  - Actions 탭에서 수동 실행(Run workflow) — 버전을 비우면 package.json 버전 사용
 on:
   push:
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "릴리스 버전 태그 (비우면 package.json 버전, 예: v1.1.0)"
+        description: "릴리스 버전 태그 (비우면 package.json 버전, 예: v1.2.0)"
         required: false
         default: ""
 
@@ -20,7 +20,7 @@ permissions:
 
 jobs:
   # ---------------------------------------------------------------- 빌드
-  build-win-linux:
+  build-win:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -29,23 +29,12 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run bundle
-      - name: Build executables
-        run: |
-          npx pkg . --no-bytecode --public --targets node22-linux-x64 --output dist/youdown-linux
-          npx pkg . --no-bytecode --public --targets node22-win-x64 --output dist/youdown-win.exe
-      - name: Build Windows installer
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq nsis
-          makensis -V2 -DVERSION="$(node -p "require('./package.json').version")" scripts/windows-installer.nsi
-          ls -la dist
+      - name: Build Windows executable
+        run: npx pkg . --no-bytecode --public --targets node22-win-x64 --output dist/youdown-win.exe
       - uses: actions/upload-artifact@v4
         with:
-          name: build-win-linux
-          path: |
-            dist/youdown-linux
-            dist/youdown-win.exe
-            dist/youdown-setup.exe
+          name: build-win
+          path: dist/youdown-win.exe
 
   build-mac:
     runs-on: macos-latest
@@ -64,14 +53,12 @@ jobs:
           codesign --verify dist/youdown-macos-arm64 || codesign --force --sign - dist/youdown-macos-arm64
           codesign --verify dist/youdown-macos-arm64
           file dist/youdown-macos-*
-      - name: Package .app / .zip / .dmg
+      - name: Package youdown.app → zip
         run: bash scripts/make-macos-app.sh dist/youdown-macos-arm64 dist/youdown-macos-x64 dist
       - uses: actions/upload-artifact@v4
         with:
           name: build-mac
-          path: |
-            dist/youdown-mac.zip
-            dist/youdown-mac.dmg
+          path: dist/youdown-mac.zip
 
   # ------------------------------------------------------ 실제 설치 테스트
   test-mac:
@@ -87,30 +74,26 @@ jobs:
         with:
           name: build-mac
           path: dist
-      - name: Install from .dmg (like a user)
+      - name: Install with the one-line installer (방금 만든 zip 으로)
         run: |
-          hdiutil attach dist/youdown-mac.dmg -nobrowse -mountpoint /Volumes/youdown
-          ls -la /Volumes/youdown
-          mkdir -p ~/Applications
-          cp -R /Volumes/youdown/youdown.app ~/Applications/
-          hdiutil detach /Volumes/youdown
-      - name: Launch via Finder (LaunchServices)
+          YOUDOWN_ZIP=dist/youdown-mac.zip YOUDOWN_NO_LAUNCH=1 bash scripts/install-mac.sh
+          APP=/Applications/youdown.app; [ -d "$APP" ] || APP=~/Applications/youdown.app
+          [ -x "$APP/Contents/MacOS/youdown" ]
+          echo "APP=$APP" >> "$GITHUB_ENV"
+      - name: Launch like double-clicking (LaunchServices)
         run: |
-          if ! open --env YOUDOWN_NO_OPEN=1 --env YOUDOWN_IDLE_TICK_MS=3000 ~/Applications/youdown.app; then
-            echo "open --env 미지원 → 런처 직접 실행"
-            YOUDOWN_NO_OPEN=1 YOUDOWN_IDLE_TICK_MS=3000 ~/Applications/youdown.app/Contents/MacOS/youdown
+          if ! open --env YOUDOWN_NO_OPEN=1 --env YOUDOWN_IDLE_TICK_MS=3000 "$APP"; then
+            YOUDOWN_NO_OPEN=1 YOUDOWN_IDLE_TICK_MS=3000 "$APP/Contents/MacOS/youdown"
           fi
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:3000/api/health >/dev/null && break; sleep 1; done
-          curl -sf http://127.0.0.1:3000/api/health
-          echo
-          ps -axo pid,command | grep '[y]oudown-bin'
+          curl -sf http://127.0.0.1:3000/api/health; echo
           # Apple Silicon 러너에서는 네이티브 arm64 빌드가 실행되어야 함
           ps -axo command | grep -q '[y]oudown-bin-arm64'
       - name: Smoke test (tool setup + real conversion)
         run: node scripts/smoke-test.mjs
       - name: Clicking the app again reuses the running one
         run: |
-          open --env YOUDOWN_NO_OPEN=1 ~/Applications/youdown.app || YOUDOWN_NO_OPEN=1 ~/Applications/youdown.app/Contents/MacOS/youdown
+          open --env YOUDOWN_NO_OPEN=1 "$APP" || YOUDOWN_NO_OPEN=1 "$APP/Contents/MacOS/youdown"
           sleep 5
           n=$(ps -axo command | grep -c '[y]oudown-bin')
           echo "running youdown processes: $n"
@@ -124,7 +107,7 @@ jobs:
         run: cat ~/.youdown/youdown.log || true
 
   test-windows:
-    needs: build-win-linux
+    needs: build-win
     runs-on: windows-latest
     timeout-minutes: 30
     env:
@@ -137,80 +120,42 @@ jobs:
           node-version: 22
       - uses: actions/download-artifact@v4
         with:
-          name: build-win-linux
+          name: build-win
           path: dist
-      - name: Run installer silently (like a user clicking through)
+      - name: Run the downloaded exe (다운로드 폴더에서 바로 실행하듯)
         shell: pwsh
         run: |
-          Start-Process -Wait -FilePath dist\youdown-setup.exe -ArgumentList "/S"
-          $exe = "$env:LOCALAPPDATA\Programs\youdown\youdown.exe"
-          if (!(Test-Path $exe)) { throw "설치되지 않음: $exe" }
-          if (!(Test-Path "$env:USERPROFILE\Desktop\youdown.lnk")) { throw "바탕화면 바로가기 없음" }
-          Get-ChildItem "$env:LOCALAPPDATA\Programs\youdown"
-      - name: Launch installed app
-        shell: pwsh
-        run: |
-          Start-Process -FilePath "$env:LOCALAPPDATA\Programs\youdown\youdown.exe" -WindowStyle Hidden
+          $dl = "$env:USERPROFILE\Downloads"; New-Item -ItemType Directory -Force $dl | Out-Null
+          Copy-Item dist\youdown-win.exe "$dl\youdown-win.exe"
+          Start-Process -FilePath "$dl\youdown-win.exe" -WindowStyle Hidden
           for ($i = 0; $i -lt 60; $i++) {
             try { Invoke-RestMethod http://127.0.0.1:3000/api/health | ConvertTo-Json; break } catch { Start-Sleep 1 }
           }
       - name: Smoke test (tool setup + real conversion)
         run: node scripts/smoke-test.mjs
-      - name: Launching again reuses the running one
+      - name: Running the exe again reuses the running one
         shell: pwsh
         run: |
-          Start-Process -Wait -FilePath "$env:LOCALAPPDATA\Programs\youdown\youdown.exe" -WindowStyle Hidden
-          $n = @(Get-Process youdown -ErrorAction SilentlyContinue).Count
+          Start-Process -Wait -FilePath "$env:USERPROFILE\Downloads\youdown-win.exe" -WindowStyle Hidden
+          $n = @(Get-Process youdown-win -ErrorAction SilentlyContinue).Count
           Write-Host "running youdown processes: $n"
           if ($n -ne 1) { throw "중복 실행됨" }
       - name: Quits by itself when no page is open
         shell: pwsh
         run: |
           for ($i = 0; $i -lt 60; $i++) {
-            if (-not (Get-Process youdown -ErrorAction SilentlyContinue)) { Write-Host "auto-quit after ~$i s"; exit 0 }
+            if (-not (Get-Process youdown-win -ErrorAction SilentlyContinue)) { Write-Host "auto-quit after ~$i s"; exit 0 }
             Start-Sleep 1
           }
           throw "자동 종료되지 않음"
-      - name: Uninstall cleanly
-        shell: pwsh
-        run: |
-          Start-Process -Wait -FilePath "$env:LOCALAPPDATA\Programs\youdown\uninstall.exe" -ArgumentList "/S"
-          # NSIS 제거 프로그램은 임시 복사본으로 넘기고 바로 반환하므로 완료를 기다림
-          for ($i = 0; $i -lt 30; $i++) {
-            if (-not (Test-Path "$env:LOCALAPPDATA\Programs\youdown\youdown.exe")) { Write-Host "uninstalled"; exit 0 }
-            Start-Sleep 1
-          }
-          throw "제거되지 않음"
       - name: Show app log
         if: always()
         shell: pwsh
         run: Get-Content "$env:USERPROFILE\.youdown\youdown.log" -ErrorAction SilentlyContinue
 
-  test-linux:
-    needs: build-win-linux
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - uses: actions/download-artifact@v4
-        with:
-          name: build-win-linux
-          path: dist
-      - name: Launch + smoke test
-        run: |
-          chmod +x dist/youdown-linux
-          YOUDOWN_NO_OPEN=1 ./dist/youdown-linux &
-          node scripts/smoke-test.mjs
-      - name: Show app log
-        if: always()
-        run: cat ~/.youdown/youdown.log || true
-
   # --------------------------------------------------------------- 배포
   publish:
-    needs: [test-mac, test-windows, test-linux]
+    needs: [test-mac, test-windows]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -237,22 +182,15 @@ jobs:
           make_latest: true
           fail_on_unmatched_files: true
           files: |
-            dist/youdown-mac.dmg
             dist/youdown-mac.zip
-            dist/youdown-setup.exe
             dist/youdown-win.exe
-            dist/youdown-linux
           body: |
             ## 다운로드
-            👉 **다운로드 페이지:** https://csy870617.github.io/youdown/ (내 컴퓨터에 맞는 파일을 자동으로 골라 줍니다)
+            👉 **https://csy870617.github.io/youdown/**
 
-            | 컴퓨터 | 파일 |
-            |---|---|
-            | Mac (Apple Silicon·Intel 공용) | `youdown-mac.dmg` — 열어서 youdown 을 '응용 프로그램'으로 끌어다 놓기 |
-            | Windows | `youdown-setup.exe` — 설치 후 바탕화면 아이콘으로 실행 |
-            | Linux | `youdown-linux` |
-
-            **Mac 경고 없이 한 줄 설치:** 터미널에 붙여넣기
+            **Mac** — 터미널에 붙여넣고 Enter (설치 후 바로 실행)
             ```
             curl -fsSL https://raw.githubusercontent.com/csy870617/youdown/HEAD/scripts/install-mac.sh | bash
             ```
+
+            **Windows** — `youdown-win.exe` 를 받아서 실행

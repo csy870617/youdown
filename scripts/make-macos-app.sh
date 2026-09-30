@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # pkg 로 만든 macOS 실행파일(Apple Silicon·Intel)을 더블클릭 가능한 youdown.app
-# 으로 감싸고, 배포용 zip(한 줄 설치용)과 dmg(끌어다 놓기 설치용)를 만든다.
+# 으로 감싸고, 배포용 zip(터미널 한 줄 설치가 사용)을 만든다.
 #
 # 사용법: scripts/make-macos-app.sh <arm64 바이너리> <x64 바이너리> <출력 디렉터리>
 set -euo pipefail
@@ -76,15 +76,3 @@ else
   ( cd "$OUT" && zip -qry youdown-mac.zip youdown.app )
 fi
 echo "생성: $OUT/youdown-mac.zip"
-
-# 2) dmg — 열면 youdown 을 '응용 프로그램'으로 끌어다 놓는 창이 뜸 (macOS 에서만)
-if command -v hdiutil >/dev/null 2>&1; then
-  STAGE="$(mktemp -d)"
-  cp -R "$APP" "$STAGE/"
-  ln -s /Applications "$STAGE/응용 프로그램"
-  rm -f "$OUT/youdown-mac.dmg"
-  hdiutil create -volname "youdown" -srcfolder "$STAGE" -ov -format UDZO \
-    "$OUT/youdown-mac.dmg" >/dev/null
-  rm -rf "$STAGE"
-  echo "생성: $OUT/youdown-mac.dmg"
-fi

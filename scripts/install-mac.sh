@@ -20,7 +20,11 @@ echo ""
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-curl -fL --progress-bar -o "$TMP/youdown-mac.zip" "$URL"
+if [ -n "${YOUDOWN_ZIP:-}" ]; then
+  cp "$YOUDOWN_ZIP" "$TMP/youdown-mac.zip"   # 테스트용: 로컬 zip 사용
+else
+  curl -fL --progress-bar -o "$TMP/youdown-mac.zip" "$URL"
+fi
 
 # 실행 중인 youdown 이 있으면 종료 (업데이트 설치 대비)
 pkill -f "youdown.app/Contents/MacOS/youdown-bin" 2>/dev/null || true
@@ -41,4 +45,4 @@ echo "  ✅ 설치 완료: $DEST/youdown.app"
 echo "  youdown 을 실행합니다. (다음부터는 Launchpad 나 Spotlight 에서 'youdown' 으로 실행)"
 echo ""
 
-open "$DEST/youdown.app"
+[ -n "${YOUDOWN_NO_LAUNCH:-}" ] || open "$DEST/youdown.app"
