@@ -9,6 +9,13 @@ import http from "node:http";
 import { fileURLToPath } from "node:url";
 import { ensureTools, APP_DIR } from "./src/tools.js";
 import { openBrowser } from "./src/open.js";
+import {
+  canSelfUpdate,
+  checkForUpdate,
+  cleanupOldVersion,
+  prepareUpdate,
+  launch as launchNewVersion,
+} from "./src/updater.js";
 
 // 번들(CJS, esbuild)에서는 전역 __dirname 을, 소스 실행(ESM)에서는
 // import.meta.url 을 사용해 기준 디렉터리를 구한다.
@@ -45,7 +52,8 @@ function readVersion() {
     return "";
   }
 }
-const VERSION = readVersion();
+// YOUDOWN_FAKE_VERSION: 자동 업데이트 테스트용(예전 버전인 척)
+const VERSION = process.env.YOUDOWN_FAKE_VERSION || readVersion();
 
 // 데스크톱 앱(실행파일)으로 실행 중인지. Docker/개발 실행과 동작을 구분한다.
 const IS_DESKTOP = !!process.pkg || process.env.YOUDOWN_DESKTOP === "1";
@@ -470,7 +478,73 @@ app.get("/api/health", (_req, res) => {
     jsRuntime: !!DENO_BIN,
     cookies: !!COOKIES_FILE,
     translocated: TRANSLOCATED,
+    update: updateState,
+    justUpdated: process.env.YOUDOWN_UPDATED === "1",
   });
+});
+
+// ---------------------------------------------------------------------------
+// 자동 업데이트: 켤 때 새 버전을 확인하고, 막 켠 참(작업 없음)이면 바로 적용.
+// 사용 중에 발견되면 화면의 '지금 업데이트' 버튼으로 적용.
+// ---------------------------------------------------------------------------
+const updateState = { available: false, version: null, state: "idle", percent: null, error: null };
+let pendingUpdate = null;
+let httpServer = null;
+const START_TIME = Date.now();
+
+async function checkUpdates() {
+  if (!IS_DESKTOP || !canSelfUpdate()) return;
+  try {
+    const u = await checkForUpdate(VERSION);
+    if (!u) return;
+    pendingUpdate = u;
+    updateState.available = true;
+    updateState.version = u.version;
+    console.log(`  · 새 버전 발견: ${u.version} (현재 ${VERSION})`);
+    // 켠 지 얼마 안 됐고 진행 중인 작업이 없으면 자동으로 적용
+    if (Date.now() - START_TIME < 90_000 && activeJobs() === 0) applyUpdate();
+  } catch (e) {
+    console.log("  · 업데이트 확인 실패(무시): " + (e.message || e));
+  }
+}
+
+async function applyUpdate() {
+  if (!pendingUpdate || updateState.state === "downloading" || updateState.state === "applying")
+    return;
+  updateState.state = "downloading";
+  updateState.percent = 0;
+  updateState.error = null;
+  console.log(`  · 업데이트 받는 중… (${pendingUpdate.version})`);
+  try {
+    const apply = await prepareUpdate(pendingUpdate, (p) => (updateState.percent = p));
+    updateState.state = "applying";
+    updateState.percent = null;
+    // 화면이 '적용 중'을 한 번 받아 갈 시간을 준 뒤 교체·재시작
+    await new Promise((r) => setTimeout(r, 1500));
+    await new Promise((r) => (httpServer ? httpServer.close(() => r()) : r()));
+    httpServer = null;
+    try {
+      fs.rmSync(INSTANCE_FILE, { force: true });
+    } catch {
+      /* ignore */
+    }
+    const exe = apply();
+    console.log(`  · ${pendingUpdate.version} 으로 교체 완료 → 다시 시작합니다.`);
+    launchNewVersion(exe);
+    setTimeout(() => process.exit(0), 300);
+  } catch (e) {
+    updateState.state = "error";
+    updateState.error = e.message || String(e);
+    console.error("[오류] 업데이트 실패:", updateState.error);
+    // 교체 전 실패라면 서버가 살아 있으므로 계속 사용 가능
+    if (!httpServer) shutdown("업데이트 중 오류로 종료합니다.", 1);
+  }
+}
+
+app.post("/api/update", (_req, res) => {
+  if (!pendingUpdate) return res.status(404).json({ error: "새 버전이 없습니다." });
+  applyUpdate();
+  res.json({ ok: true });
 });
 
 // 최초 준비가 실패했을 때(네트워크 끊김 등) 앱을 껐다 켜지 않고 다시 시도
@@ -506,7 +580,14 @@ function startIdleWatch() {
   // 분 단위 "틱"으로 센다. 컴퓨터가 잠자기 상태였던 시간은 틱이 돌지 않아
   // 잠깐 덮개를 닫았다고 앱이 꺼지지 않는다.
   setInterval(() => {
-    if (pingedSinceTick || activeJobs() > 0 || sseClients > 0 || booting) {
+    if (
+      pingedSinceTick ||
+      activeJobs() > 0 ||
+      sseClients > 0 ||
+      booting ||
+      updateState.state === "downloading" ||
+      updateState.state === "applying"
+    ) {
       idleTicks = 0;
     } else {
       idleTicks++;
@@ -682,6 +763,7 @@ const AUTO_OPEN = process.env.YOUDOWN_NO_OPEN !== "1";
   // 서버 배포(Docker 등)는 외부 접속을 위해 모든 인터페이스에서 대기
   const host = IS_DESKTOP ? "127.0.0.1" : undefined;
   const server = app.listen(port, host, () => {
+    httpServer = server;
     const url = `http://${IS_DESKTOP ? "127.0.0.1" : "localhost"}:${port}`;
     console.log(`\n  youdown ${VERSION} 실행 중 → ${url}`);
     console.log(
@@ -696,6 +778,8 @@ const AUTO_OPEN = process.env.YOUDOWN_NO_OPEN !== "1";
         /* ignore */
       }
       startIdleWatch();
+      cleanupOldVersion();
+      setTimeout(checkUpdates, 1500);
     }
     if (AUTO_OPEN) openBrowser(url);
     // 서버는 즉시 응답하고, 도구 준비는 백그라운드로 진행

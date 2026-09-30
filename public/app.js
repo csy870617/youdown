@@ -67,6 +67,9 @@ function setReady(isReady) {
 
 let appReady = false;
 let appGone = false;
+let updating = false; // 업데이트 적용 → 재시작 중
+let knownVersion = null;
+let doneNoticeUntil = 0;
 let pollTimer = null;
 
 // 폴링은 항상 하나의 타이머로만 (중복 루프 방지)
@@ -79,6 +82,35 @@ async function pollHealth() {
   try {
     const h = await (await fetch("/api/health", { cache: "no-store" })).json();
     appGone = false;
+
+    // 업데이트가 끝나고 새 버전으로 다시 연결됨
+    if (knownVersion && h.version && h.version !== knownVersion && updating) {
+      doneNoticeUntil = Date.now() + 5000;
+    }
+    if (h.version) knownVersion = h.version;
+    if (!h.update || (h.update.state !== "downloading" && h.update.state !== "applying")) {
+      if (updating && h.version) updating = false;
+    }
+
+    // 업데이트 진행 중
+    const u = h.update || {};
+    if (u.state === "downloading" || u.state === "applying") {
+      updating = true;
+      appReady = false;
+      setReady(false);
+      setStatus(
+        "loading",
+        u.state === "applying"
+          ? `새 버전(v${u.version})으로 바꾸는 중…`
+          : `새 버전(v${u.version}) 받는 중…${typeof u.percent === "number" ? " " + Math.round(u.percent * 100) + "%" : ""}`,
+        {
+          hint: "이전 버전은 자동으로 지워지고, 끝나면 이 화면이 그대로 이어져요.",
+          percent: typeof u.percent === "number" ? u.percent : undefined,
+        }
+      );
+      schedulePoll(500);
+      return;
+    }
     if (h.bootError) {
       appReady = false;
       setReady(false);
@@ -111,7 +143,22 @@ async function pollHealth() {
     }
     appReady = true;
     setReady(true);
-    if (h.translocated) {
+    if (Date.now() < doneNoticeUntil) {
+      setStatus("", `업데이트 완료 — 이제 v${h.version} 이에요.`);
+      schedulePoll(Math.max(500, doneNoticeUntil - Date.now()));
+      return;
+    }
+    if (u.state === "error") {
+      setStatus("warn", "업데이트하지 못했어요 — " + u.error, {
+        action: { label: "다시 시도", onClick: startUpdate },
+      });
+    } else if (u.available) {
+      setStatus("warn", `새 버전(v${u.version})이 있어요.`, {
+        hint: "지금 받는 작업이 없을 때 눌러 주세요. 1분이면 끝나요.",
+        action: { label: "지금 업데이트", onClick: startUpdate },
+      });
+      schedulePoll(5000);
+    } else if (h.translocated) {
       setStatus("warn", "youdown 을 '응용 프로그램' 폴더로 옮겨서 실행하면 더 안정적이에요.");
     } else if (!h.ffmpeg) {
       setStatus("warn", "ffmpeg 없음 — 음원은 원본 오디오, 영상은 단일 스트림으로 제공됩니다.");
@@ -120,8 +167,8 @@ async function pollHealth() {
     }
   } catch {
     // 서버에 연결할 수 없음 (앱이 종료됨) → 다시 켜지면 자동으로 이어서 사용
-    if (appReady || appGone) showGone();
-    schedulePoll(2000);
+    if (appReady || appGone || updating) showGone();
+    schedulePoll(updating ? 700 : 2000);
   }
 }
 
@@ -129,9 +176,26 @@ function showGone() {
   appGone = true;
   appReady = false;
   setReady(false);
+  if (updating) {
+    setStatus("loading", "새 버전으로 다시 시작하는 중…", {
+      hint: "잠시만 기다려 주세요. 자동으로 이어집니다.",
+    });
+    return;
+  }
   setStatus("error", "youdown 이 종료되었습니다.", {
     hint: "앱을 다시 실행하면 이 화면이 자동으로 이어집니다.",
   });
+}
+
+async function startUpdate() {
+  updating = true;
+  setStatus("loading", "업데이트를 시작하는 중…");
+  try {
+    await fetch("/api/update", { method: "POST" });
+  } catch {
+    /* 폴링이 상태를 반영 */
+  }
+  schedulePoll(300);
 }
 
 // 이 페이지가 열려 있는 동안 앱이 켜져 있도록 주기적으로 신호를 보낸다.

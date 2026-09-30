@@ -102,6 +102,21 @@ jobs:
         run: |
           for i in $(seq 1 60); do pgrep -f youdown-bin >/dev/null || { echo "auto-quit after ~${i}s"; exit 0; }; sleep 1; done
           echo "did not quit"; exit 1
+      - name: Auto-update replaces the app in place (예전 버전인 척 실행)
+        run: |
+          LATEST=$(curl -sI https://github.com/csy870617/youdown/releases/latest | grep -i '^location:' | sed -E 's#.*/tag/v?([^[:space:]]+).*#\1#' | tr -d '\r')
+          echo "latest published: $LATEST"
+          open --env YOUDOWN_NO_OPEN=1 --env YOUDOWN_FAKE_VERSION=0.0.1 "$APP" || YOUDOWN_NO_OPEN=1 YOUDOWN_FAKE_VERSION=0.0.1 "$APP/Contents/MacOS/youdown"
+          for i in $(seq 1 120); do
+            v=$(curl -sf http://127.0.0.1:3000/api/health | python3 -c "import sys,json;print(json.load(sys.stdin)['version'])" 2>/dev/null || true)
+            [ "$v" = "$LATEST" ] && { echo "updated to $v after ~${i}s"; break; }
+            sleep 1
+          done
+          [ "$v" = "$LATEST" ]
+          plutil -extract CFBundleShortVersionString raw "$APP/Contents/Info.plist" | grep -qx "$LATEST"
+          [ ! -e "$(dirname "$APP")/.youdown-update" ]   # 임시·이전 버전 정리됨
+          sleep 3; n=$(ps -axo command | grep -c '[y]oudown-bin'); echo "processes: $n"; [ "$n" = "1" ]
+          pkill -f youdown-bin || true
       - name: Show app log
         if: always()
         run: cat ~/.youdown/youdown.log || true
@@ -148,6 +163,30 @@ jobs:
             Start-Sleep 1
           }
           throw "자동 종료되지 않음"
+      - name: Auto-update replaces the exe in place (예전 버전인 척 실행)
+        shell: pwsh
+        run: |
+          $r = Invoke-WebRequest https://github.com/csy870617/youdown/releases/latest -MaximumRedirection 0 -SkipHttpErrorCheck -ErrorAction SilentlyContinue
+          $LATEST = ($r.Headers.Location -replace '.*/tag/v?','').Trim()
+          Write-Host "latest published: $LATEST"
+          $exe = "$env:USERPROFILE\Downloads\youdown-win.exe"
+          $before = (Get-FileHash $exe).Hash
+          $env:YOUDOWN_FAKE_VERSION = "0.0.1"
+          Start-Process -FilePath $exe -WindowStyle Hidden
+          $env:YOUDOWN_FAKE_VERSION = $null
+          $v = ""
+          for ($i = 0; $i -lt 120; $i++) {
+            try { $v = (Invoke-RestMethod http://127.0.0.1:3000/api/health).version } catch {}
+            if ($v -eq $LATEST) { Write-Host "updated to $v after ~$i s"; break }
+            Start-Sleep 1
+          }
+          if ($v -ne $LATEST) { throw "업데이트되지 않음 (version=$v)" }
+          if ((Get-FileHash $exe).Hash -eq $before) { throw "같은 자리의 exe 가 교체되지 않음" }
+          if (Test-Path "$exe.new") { throw ".new 가 남아 있음" }
+          Start-Sleep 3
+          $n = @(Get-Process youdown-win -ErrorAction SilentlyContinue).Count
+          Write-Host "processes: $n"; if ($n -ne 1) { throw "중복 실행됨" }
+          Stop-Process -Name youdown-win -Force -ErrorAction SilentlyContinue
       - name: Show app log
         if: always()
         shell: pwsh

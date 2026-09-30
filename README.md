@@ -23,7 +23,7 @@
 curl -fsSL https://raw.githubusercontent.com/csy870617/youdown/HEAD/scripts/install-mac.sh | bash
 ```
 
-다음부터는 Launchpad·Spotlight 에서 **youdown** 으로 실행. 보안 경고 없이 설치되며, 같은 명령을 다시 실행하면 업데이트됩니다.
+다음부터는 Launchpad·Spotlight 에서 **youdown** 으로 실행. 보안 경고 없이 설치됩니다.
 
 **Windows** — [`youdown-win.exe`](https://github.com/csy870617/youdown/releases/latest/download/youdown-win.exe) 를 받아 더블클릭. 설치 과정 없이 바로 실행됩니다.
 ("Windows의 PC 보호" 창이 뜨면 **추가 정보 → 실행**. 함께 뜨는 검은 창을 닫으면 종료)
@@ -33,6 +33,7 @@ curl -fsSL https://raw.githubusercontent.com/csy870617/youdown/HEAD/scripts/inst
 - **처음 한 번만** 필요한 구성요소(yt-dlp·ffmpeg·deno, 약 200MB)를 자동으로 받습니다(1~3분).
 - 이미 켜져 있을 때 다시 실행하면 **창만 다시 열립니다.**
 - **브라우저 탭을 닫으면** 약 10분 뒤 **자동으로 종료**됩니다.
+- **자동 업데이트:** 켤 때 새 버전이 있으면 스스로 받아 교체하고(이전 버전 자동 삭제) 다시 시작합니다. 다시 내려받을 필요가 없습니다.
 - 문제가 생기면 `~/.youdown/youdown.log` 를 확인하세요.
 
 ## 개발자용 실행 (소스에서)

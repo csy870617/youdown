@@ -33,7 +33,7 @@ function onPath(bin) {
 }
 
 // 자식 프로세스를 비동기로 실행 (이벤트 루프를 막지 않음)
-function run(cmd, args) {
+export function run(cmd, args) {
   return new Promise((resolve, reject) => {
     const c = spawn(cmd, args, { stdio: "ignore", windowsHide: true });
     c.on("error", reject);
@@ -71,7 +71,7 @@ async function extract(archive, dir) {
 // 리다이렉트를 따라가며 파일 다운로드 (진행률 콜백 지원).
 // dest 에 바로 쓰지 않고 .part 에 받은 뒤 이름을 바꿔, 중간에 끊겨도
 // 반쯤 받은 파일이 "설치됨"으로 오인되지 않게 한다.
-function download(url, dest, onProgress, redirects = 0) {
+export function download(url, dest, onProgress, redirects = 0) {
   return new Promise((resolve, reject) => {
     if (redirects > 8) {
       return reject(new Error("리다이렉트가 너무 많습니다: " + url));
