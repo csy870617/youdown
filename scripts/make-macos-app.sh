@@ -48,7 +48,8 @@ exec "$BIN" >/dev/null 2>&1
 SH
 chmod +x "$APP/Contents/MacOS/youdown"
 
-# 앱 메타데이터 (LSUIElement: 독에 아이콘을 띄우지 않음 — 창 없이 브라우저로 동작)
+# 앱 메타데이터 (LSUIElement: 독에 아이콘을 띄우지 않음 — 창 없이 브라우저로 동작,
+#  CFBundleURLTypes: 다운로드 페이지의 youdown:// 링크로 실행)
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -64,6 +65,13 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSMinimumSystemVersion</key><string>11.0</string>
   <key>LSUIElement</key><true/>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key><string>com.youdown.app</string>
+      <key>CFBundleURLSchemes</key><array><string>youdown</string></array>
+    </dict>
+  </array>
 </dict>
 </plist>
 PLIST

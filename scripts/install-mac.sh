@@ -39,6 +39,9 @@ fi
 rm -rf "$DEST/youdown.app"
 ditto -x -k "$TMP/youdown-mac.zip" "$DEST"
 xattr -dr com.apple.quarantine "$DEST/youdown.app" 2>/dev/null || true
+# youdown:// 링크(다운로드 페이지의 'youdown 실행' 버튼) 등록
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister \
+  -f "$DEST/youdown.app" 2>/dev/null || true
 
 echo ""
 echo "  ✅ 설치 완료: $DEST/youdown.app"

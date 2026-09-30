@@ -124,6 +124,17 @@
         box-shadow: inset 0 0 0 1px var(--primary); }
       .os-btn.active .d { color: var(--primary); }
 
+      .launch { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        margin: 12px 0 0; padding: 12px 14px; border: 1px dashed var(--border-strong); border-radius: 8px; }
+      .launch-txt { font-size: 13.5px; color: var(--text-2); }
+      .launch-txt b { color: var(--text); }
+      .btn-sub { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; padding: 8px 14px;
+        border-radius: 8px; border: 1px solid var(--primary); color: var(--primary); background: var(--surface);
+        font-size: 14px; font-weight: 650; text-decoration: none; transition: background 0.15s; }
+      .btn-sub:hover { background: var(--primary-soft); }
+      .btn-sub:focus-visible { outline: 3px solid var(--primary-line); outline-offset: 2px; }
+      .btn-sub svg { width: 14px; height: 14px; }
+      .launch-hint { font-size: 12.5px; color: var(--muted); margin: 8px 2px 0; }
       .meta { display: grid; grid-template-columns: repeat(3, 1fr); margin: 18px 0 0;
         border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
       .meta div { padding: 10px 14px; border-left: 1px solid var(--border); min-width: 0; }
@@ -197,6 +208,8 @@
         .card { padding: 20px 16px; }
         .choose { grid-template-columns: 1fr; }
         .meta { grid-template-columns: 1fr; }
+        .launch { flex-direction: column; align-items: stretch; text-align: center; }
+        .btn-sub { justify-content: center; }
         .meta div { border-left: none; border-top: 1px solid var(--border);
           display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
         .meta div:first-child { border-top: none; }
@@ -248,6 +261,14 @@
             <span class="txt"><span class="t">Windows</span><span class="d">실행 파일 받기 (.exe)</span></span>
           </button>
         </div>
+        <div class="launch">
+          <span class="launch-txt">이미 설치했나요? <b>여기서 바로 실행</b>할 수 있어요.</span>
+          <a id="launch" class="btn-sub" href="youdown://open">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>
+            youdown 실행
+          </a>
+        </div>
+        <p id="launch-hint" class="launch-hint hidden">브라우저가 "youdown 열기"를 물으면 <b>열기</b>를 눌러 주세요. 아무 반응이 없다면 아직 설치하지 않은 거예요 — 위에서 컴퓨터를 골라 설치해 주세요. (Windows 는 받은 파일을 한 번 실행해야 이 버튼이 연결돼요.)</p>
         <dl class="meta">
           <div><dt>최신 버전</dt><dd id="meta-ver">확인 중…</dd></div>
           <div><dt>게시일</dt><dd id="meta-date">—</dd></div>
@@ -275,7 +296,7 @@
             </div>
           </li>
           <li>설치가 끝나면 youdown 이 실행되고 <b>브라우저가 자동으로 열려요.</b> 처음 한 번만 준비(1~3분) 후 바로 쓸 수 있어요.</li>
-          <li>다음부터는 <b>Launchpad</b> 나 <b>Spotlight</b>(<span class="kbd">⌘</span>+<span class="kbd">스페이스</span>)에서 <b>youdown</b> 으로 실행하세요.</li>
+          <li>다음부터는 이 페이지의 <b>youdown 실행</b> 버튼이나 <b>Launchpad</b>·<b>Spotlight</b>(<span class="kbd">⌘</span>+<span class="kbd">스페이스</span>)에서 실행하세요.</li>
         </ol>
         <div class="notice">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -297,6 +318,7 @@
             <p class="note">서명 비용이 드는 인증을 받지 않은 프로그램이라 처음 한 번 나오는 안내예요.</p>
           </li>
           <li>브라우저가 자동으로 열리면 끝! 함께 뜨는 <b>검은 창을 닫으면</b> youdown 이 종료돼요.</li>
+          <li>다음부터는 받은 파일을 다시 실행하거나, 이 페이지의 <b>youdown 실행</b> 버튼을 누르세요.</li>
         </ol>
         <div class="notice">
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v5M12 8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -321,7 +343,7 @@
         </details>
         <details>
           <summary>삭제하려면?</summary>
-          <p>Mac: 응용 프로그램에서 youdown 을 휴지통으로 옮기세요. Windows: 받은 youdown-win.exe 파일을 지우면 돼요. 앱이 받아 둔 구성요소는 홈 폴더의 숨김 폴더 <code>.youdown</code> 에 있으니 함께 지우면 완전히 삭제돼요.</p>
+          <p>Mac: 응용 프로그램에서 youdown 을 휴지통으로 옮기세요. Windows: 받은 youdown-win.exe 파일을 지우면 돼요. ('youdown 실행' 버튼용 연결 정보는 남아도 아무 영향이 없어요.) 앱이 받아 둔 구성요소는 홈 폴더의 숨김 폴더 <code>.youdown</code> 에 있으니 함께 지우면 완전히 삭제돼요.</p>
         </details>
       </section>
     </main>
@@ -387,6 +409,8 @@
       document.querySelectorAll("[data-copy]").forEach((b) =>
         b.addEventListener("click", () => copyText($(b.dataset.copy).textContent.trim(), b)));
       $("copy-link").addEventListener("click", (e) => copyText(location.href, e.currentTarget));
+
+      $("launch").addEventListener("click", () => $("launch-hint").classList.remove("hidden"));
 
       if (isMobile()) {
         $("desktop").classList.add("hidden");

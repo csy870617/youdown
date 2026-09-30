@@ -102,6 +102,13 @@ jobs:
         run: |
           for i in $(seq 1 60); do pgrep -f youdown-bin >/dev/null || { echo "auto-quit after ~${i}s"; exit 0; }; sleep 1; done
           echo "did not quit"; exit 1
+      - name: youdown:// link launches the installed app (페이지의 'youdown 실행' 버튼)
+        run: |
+          open "youdown://open"
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:3000/api/health >/dev/null && { echo "launched via link after ~${i}s"; break; }; sleep 1; done
+          curl -sf http://127.0.0.1:3000/api/health >/dev/null
+          pkill -f youdown-bin || true
+          for i in $(seq 1 20); do pgrep -f youdown-bin >/dev/null || break; sleep 1; done
       - name: Auto-update replaces the app in place (예전 버전인 척 실행)
         run: |
           LATEST=$(curl -sI https://github.com/csy870617/youdown/releases/latest | grep -i '^location:' | sed -E 's#.*/tag/v?([^[:space:]]+).*#\1#' | tr -d '\r')
@@ -163,6 +170,21 @@ jobs:
             Start-Sleep 1
           }
           throw "자동 종료되지 않음"
+      - name: youdown:// link launches the exe (페이지의 'youdown 실행' 버튼)
+        shell: pwsh
+        run: |
+          $exe = "$env:USERPROFILE\Downloads\youdown-win.exe"
+          $cmd = (Get-ItemProperty "HKCU:\Software\Classes\youdown\shell\open\command").'(default)'
+          Write-Host "registered: $cmd"
+          if ($cmd -ne "`"$exe`"") { throw "youdown:// 링크가 등록되지 않음" }
+          Start-Process "youdown://open"
+          $ok = $false
+          for ($i = 0; $i -lt 60; $i++) {
+            try { Invoke-RestMethod http://127.0.0.1:3000/api/health | Out-Null; $ok = $true; Write-Host "launched via link after ~$i s"; break } catch { Start-Sleep 1 }
+          }
+          if (-not $ok) { throw "링크로 실행되지 않음" }
+          Stop-Process -Name youdown-win -Force -ErrorAction SilentlyContinue
+          Start-Sleep 2
       - name: Auto-update replaces the exe in place (예전 버전인 척 실행)
         shell: pwsh
         run: |

@@ -9,6 +9,7 @@ import http from "node:http";
 import { fileURLToPath } from "node:url";
 import { ensureTools, APP_DIR } from "./src/tools.js";
 import { openBrowser } from "./src/open.js";
+import { registerLaunchLink } from "./src/launchlink.js";
 import {
   canSelfUpdate,
   checkForUpdate,
@@ -779,6 +780,7 @@ const AUTO_OPEN = process.env.YOUDOWN_NO_OPEN !== "1";
       }
       startIdleWatch();
       cleanupOldVersion();
+      registerLaunchLink(); // 다운로드 페이지의 'youdown 실행' 버튼용
       setTimeout(checkUpdates, 1500);
     }
     if (AUTO_OPEN) openBrowser(url);
