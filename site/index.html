@@ -138,6 +138,7 @@
       .os-btn.active .d { color: var(--accent-2); }
       .guide { animation: fade 0.25s ease; }
       @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+      .win-dl { margin: 10px 0 4px; padding: 13px; font-size: 15.5px; }
       .dl-again { font-size: 12.5px; color: var(--muted); margin: 12px 0 0; }
       .dl-again a { color: var(--text-2); }
       .kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius: 6px;
@@ -210,7 +211,7 @@
               <path d="M3 5.55l7.37-1v7.12H3V5.55zm0 12.9l7.37 1.02v-7.04H3v6.02zm8.18 1.13L21 21v-8.49h-9.82v7.07zm0-15.16v7.25H21V3l-9.82 1.42z"/>
             </svg>
             <span class="t">Windows</span>
-            <span class="d">실행 파일 받기</span>
+            <span class="d">설치 없이 바로 실행</span>
           </button>
         </div>
         <div id="launch-box" class="launch-box">
@@ -252,7 +253,11 @@
         <h2>Windows 사용 방법</h2>
         <ol class="steps">
           <li>
-            <b>youdown-win.exe</b> 다운로드가 시작돼요.
+            아래 버튼을 눌러 <b>youdown-win.exe</b> 를 받아요.
+            <a id="win-link" class="btn win-dl" href="#">
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              실행 파일 다운로드
+            </a>
             <p class="note">브라우저가 "일반적으로 다운로드되지 않는 파일"이라고 막으면 <b>… → 유지</b>를 눌러 주세요.</p>
           </li>
           <li>받은 파일(다운로드 폴더)을 <b>더블클릭</b>해서 실행해요.</li>
@@ -264,7 +269,6 @@
           <li>다음부터는 이 페이지의 <b>youdown 실행하기</b> 버튼으로 켜면 돼요.</li>
         </ol>
         <p class="note">설치할 필요 없이 이 파일 하나로 실행돼요. 바탕화면에 옮겨 두면 편해요. 새 버전은 이 파일이 스스로 업데이트하니 다시 받을 필요 없어요.</p>
-        <p class="dl-again">다운로드가 시작되지 않았나요? <a id="win-link" href="#">여기를 눌러 다시 받기</a></p>
       </section>
 
       <section class="card">
@@ -306,29 +310,26 @@
           (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
       }
 
-      // 숨은 프레임으로 받아서 페이지를 벗어나지 않게 함
-      function startWinDownload() {
-        let f = document.getElementById("dl-frame");
-        if (!f) {
-          f = document.createElement("iframe");
-          f.id = "dl-frame"; f.style.display = "none";
-          document.body.appendChild(f);
-        }
-        f.src = WIN_URL;
-      }
-
-      function select(os, { download = false } = {}) {
-        document.querySelectorAll(".os-btn").forEach((b) =>
-          b.classList.toggle("active", b.dataset.os === os));
-        $("guide-mac").classList.toggle("hidden", os !== "mac");
-        $("guide-win").classList.toggle("hidden", os !== "win");
-        if (os === "win" && download) startWinDownload(); // 누르면 바로 다운로드 시작
-        const g = $(os === "mac" ? "guide-mac" : "guide-win");
+      // 컴퓨터 선택: 누르면 안내가 펼쳐지고, 같은 버튼을 한 번 더 누르면 접힘
+      let openOs = null;
+      function select(os) {
+        openOs = openOs === os ? null : os;
+        document.querySelectorAll(".os-btn").forEach((b) => {
+          const on = b.dataset.os === openOs;
+          b.classList.toggle("active", on);
+          b.setAttribute("aria-expanded", on ? "true" : "false");
+        });
+        $("guide-mac").classList.toggle("hidden", openOs !== "mac");
+        $("guide-win").classList.toggle("hidden", openOs !== "win");
+        if (!openOs) return;
+        const g = $(openOs === "mac" ? "guide-mac" : "guide-win");
         setTimeout(() => g.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
       }
 
-      document.querySelectorAll(".os-btn").forEach((b) =>
-        b.addEventListener("click", () => { remember(); select(b.dataset.os, { download: true }); }));
+      document.querySelectorAll(".os-btn").forEach((b) => {
+        b.setAttribute("aria-expanded", "false");
+        b.addEventListener("click", () => { remember(); select(b.dataset.os); });
+      });
 
       async function copyText(text, btn) {
         try {
