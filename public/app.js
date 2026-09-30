@@ -23,52 +23,138 @@ const progressNote = $("progress-note");
 
 const statusEl = $("status");
 const statusText = $("status-text");
+const statusHint = $("status-hint");
+const statusBar = $("status-bar");
+const statusBarFill = $("status-bar-fill");
+const statusAction = $("status-action");
 
 let currentUrl = "";
 let selectedType = "video";
 
-// 상태 배너 (type: "loading" | "error" | "warn" | "")
-function setStatus(type, text) {
+// 상태 배너
+// type: "loading" | "error" | "warn" | ""
+// opts: { hint, percent(0~1), action: { label, onClick } }
+function setStatus(type, text, opts = {}) {
   if (!text) {
     statusEl.classList.add("hidden");
     return;
   }
   statusEl.className = "status" + (type ? " " + type : "");
   statusText.textContent = text;
+
+  statusHint.textContent = opts.hint || "";
+  statusHint.classList.toggle("hidden", !opts.hint);
+
+  const hasPct = typeof opts.percent === "number";
+  statusBar.classList.toggle("hidden", !hasPct);
+  if (hasPct) statusBarFill.style.width = Math.round(opts.percent * 100) + "%";
+
+  if (opts.action) {
+    statusAction.textContent = opts.action.label;
+    statusAction.onclick = opts.action.onClick;
+    statusAction.classList.remove("hidden");
+  } else {
+    statusAction.onclick = null;
+    statusAction.classList.add("hidden");
+  }
 }
 
-// 준비 상태 폴링 (최초 실행 시 yt-dlp/ffmpeg 자동 설치 대기)
+// 준비 상태 폴링 (최초 실행 시 yt-dlp/ffmpeg/deno 자동 설치 대기)
 function setReady(isReady) {
   fetchBtn.disabled = !isReady;
   urlInput.disabled = !isReady;
 }
 
+let appReady = false;
+let appGone = false;
+let pollTimer = null;
+
+// 폴링은 항상 하나의 타이머로만 (중복 루프 방지)
+function schedulePoll(ms) {
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(pollHealth, ms);
+}
+
 async function pollHealth() {
   try {
-    const h = await (await fetch("/api/health")).json();
+    const h = await (await fetch("/api/health", { cache: "no-store" })).json();
+    appGone = false;
     if (h.bootError) {
-      setStatus("error", "준비 실패 — " + h.bootError);
+      appReady = false;
       setReady(false);
+      setStatus("error", "준비하지 못했습니다 — " + h.bootError, {
+        hint: "인터넷 연결을 확인한 뒤 다시 시도해 주세요.",
+        action: {
+          label: "다시 시도",
+          onClick: async () => {
+            setStatus("loading", "다시 준비하는 중…");
+            try {
+              await fetch("/api/retry-setup", { method: "POST" });
+            } catch {
+              /* 폴링이 상태를 반영 */
+            }
+            schedulePoll(500);
+          },
+        },
+      });
       return;
     }
     if (!h.ready) {
-      setStatus("loading", h.bootStatus || "필수 구성요소를 준비하는 중…");
+      appReady = false;
       setReady(false);
-      setTimeout(pollHealth, 1000);
+      setStatus("loading", h.bootStatus || "필수 구성요소를 준비하는 중…", {
+        hint: "처음 한 번만 필요한 준비예요. 보통 1~3분 걸립니다.",
+        percent: typeof h.bootPercent === "number" ? h.bootPercent : undefined,
+      });
+      schedulePoll(700);
       return;
     }
+    appReady = true;
     setReady(true);
-    if (!h.ffmpeg) {
+    if (h.translocated) {
+      setStatus("warn", "youdown 을 '응용 프로그램' 폴더로 옮겨서 실행하면 더 안정적이에요.");
+    } else if (!h.ffmpeg) {
       setStatus("warn", "ffmpeg 없음 — 음원은 원본 오디오, 영상은 단일 스트림으로 제공됩니다.");
     } else {
       setStatus("", "");
     }
   } catch {
-    setTimeout(pollHealth, 1500);
+    // 서버에 연결할 수 없음 (앱이 종료됨) → 다시 켜지면 자동으로 이어서 사용
+    if (appReady || appGone) showGone();
+    schedulePoll(2000);
   }
 }
+
+function showGone() {
+  appGone = true;
+  appReady = false;
+  setReady(false);
+  setStatus("error", "youdown 이 종료되었습니다.", {
+    hint: "앱을 다시 실행하면 이 화면이 자동으로 이어집니다.",
+  });
+}
+
+// 이 페이지가 열려 있는 동안 앱이 켜져 있도록 주기적으로 신호를 보낸다.
+// (탭을 닫으면 신호가 끊기고, 앱은 잠시 후 스스로 종료)
+async function ping() {
+  try {
+    await fetch("/api/ping", { method: "POST", cache: "no-store" });
+    if (appGone) schedulePoll(0);
+  } catch {
+    if (appReady) {
+      showGone();
+      schedulePoll(2000);
+    }
+  }
+}
+setInterval(ping, 30_000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") ping();
+});
+
 setReady(false);
 pollHealth();
+ping();
 
 function showError(msg) {
   inputError.textContent = msg;

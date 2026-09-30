@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>youdown 다운로드</title>
+    <meta name="description" content="유튜브 영상·음원을 내 컴퓨터에 저장하는 youdown 다운로드" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <style>
+      :root {
+        --bg: #08080c;
+        --bg-2: #0d0d14;
+        --surface: rgba(255, 255, 255, 0.04);
+        --surface-2: rgba(255, 255, 255, 0.07);
+        --border: rgba(255, 255, 255, 0.09);
+        --border-strong: rgba(255, 255, 255, 0.16);
+        --text: #f5f5f8;
+        --text-2: #b4b4c0;
+        --muted: #7c7c8e;
+        --accent: #ff4747;
+        --accent-2: #ff6b6b;
+        --ok: #34d399;
+        --radius: 16px;
+        --shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.7);
+        --font: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+          "Segoe UI", "Malgun Gothic", system-ui, sans-serif;
+        --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f6f6f9;
+          --bg-2: #eef0f5;
+          --surface: rgba(255, 255, 255, 0.9);
+          --surface-2: #ffffff;
+          --border: rgba(15, 15, 30, 0.09);
+          --border-strong: rgba(15, 15, 30, 0.16);
+          --text: #16161d;
+          --text-2: #444458;
+          --muted: #80808c;
+          --shadow: 0 24px 60px -28px rgba(20, 20, 45, 0.3);
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        font-family: var(--font);
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+        word-break: keep-all;
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+      }
+      .glow {
+        position: fixed; inset: 0; z-index: -1;
+        background:
+          radial-gradient(60% 45% at 50% -8%, rgba(255, 71, 71, 0.18), transparent 70%),
+          radial-gradient(40% 30% at 85% 10%, rgba(120, 80, 255, 0.1), transparent 70%),
+          linear-gradient(180deg, var(--bg-2), var(--bg) 40%);
+      }
+      main { max-width: 600px; margin: 0 auto; padding: clamp(40px, 9vh, 96px) 16px 56px; }
+
+      .hero { text-align: center; margin-bottom: 30px; }
+      .logo { width: 76px; height: 76px; display: block; margin: 0 auto 18px;
+        filter: drop-shadow(0 12px 24px rgba(255, 71, 71, 0.35)); }
+      h1 { font-size: clamp(28px, 7vw, 38px); line-height: 1.2; letter-spacing: -0.02em;
+        margin: 0 0 10px; font-weight: 750; }
+      .sub { color: var(--text-2); margin: 0; font-size: 15.5px; }
+
+      .card { background: var(--surface); border: 1px solid var(--border);
+        border-radius: 22px; padding: 22px; box-shadow: var(--shadow); margin-bottom: 16px; }
+
+      .btn { display: flex; align-items: center; justify-content: center; gap: 10px;
+        width: 100%; padding: 17px; border-radius: 14px; border: none; cursor: pointer;
+        font-family: inherit; font-size: 17px; font-weight: 700; color: #fff; text-decoration: none;
+        background: linear-gradient(145deg, var(--accent-2), var(--accent));
+        box-shadow: 0 12px 26px -10px rgba(255, 71, 71, 0.65);
+        transition: transform 0.08s ease, box-shadow 0.16s; }
+      .btn:hover { box-shadow: 0 16px 32px -10px rgba(255, 71, 71, 0.8); }
+      .btn:active { transform: translateY(1px); }
+      .btn svg { width: 20px; height: 20px; }
+      .btn-meta { text-align: center; color: var(--muted); font-size: 12.5px; margin: 10px 0 0; }
+      .others { text-align: center; font-size: 13px; color: var(--muted); margin: 14px 0 0; }
+      .others a { color: var(--text-2); }
+
+      .steps { list-style: none; padding: 0; margin: 4px 0 0; counter-reset: s; }
+      .steps li { position: relative; padding: 0 0 16px 40px; counter-increment: s; color: var(--text-2); font-size: 14.5px; }
+      .steps li:last-child { padding-bottom: 0; }
+      .steps li::before { content: counter(s); position: absolute; left: 0; top: 0;
+        width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+        font-size: 13px; font-weight: 700; color: var(--accent-2);
+        background: rgba(255, 71, 71, 0.12); border: 1px solid rgba(255, 71, 71, 0.3); }
+      .steps b { color: var(--text); font-weight: 650; }
+      .card h2 { font-size: 15px; margin: 0 0 14px; color: var(--text); font-weight: 700; }
+      .note { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+
+      .fast { border-color: rgba(52, 211, 153, 0.35); }
+      .fast h2 { display: flex; align-items: center; gap: 8px; }
+      .badge { font-size: 11px; font-weight: 700; color: var(--ok); padding: 2px 8px;
+        border-radius: 999px; border: 1px solid rgba(52, 211, 153, 0.4); background: rgba(52, 211, 153, 0.1); }
+      .cmd { display: flex; gap: 8px; align-items: stretch; margin-top: 10px; }
+      .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-family: var(--mono);
+        font-size: 12.5px; padding: 11px 12px; border-radius: 11px; background: var(--surface-2);
+        border: 1px solid var(--border); color: var(--text); }
+      .copy { flex-shrink: 0; font-family: inherit; font-size: 13px; font-weight: 650; padding: 0 14px;
+        border-radius: 11px; border: 1px solid var(--border-strong); background: var(--surface-2);
+        color: var(--text); cursor: pointer; }
+      .copy:hover { border-color: var(--ok); color: var(--ok); }
+
+      details { border-top: 1px solid var(--border); padding: 12px 0; }
+      details:first-of-type { border-top: none; padding-top: 0; }
+      summary { cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text); list-style: none; }
+      summary::-webkit-details-marker { display: none; }
+      summary::before { content: "+"; display: inline-block; width: 18px; color: var(--muted); }
+      details[open] summary::before { content: "–"; }
+      details p { margin: 8px 0 0 18px; font-size: 13.5px; color: var(--text-2); }
+
+      .mobile { text-align: center; }
+      .mobile p { color: var(--text-2); margin: 0 0 14px; }
+
+      footer { text-align: center; font-size: 12px; color: var(--muted); line-height: 1.7; margin-top: 26px; }
+      footer a { color: var(--muted); }
+      .hidden { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <div class="glow" aria-hidden="true"></div>
+    <main>
+      <header class="hero">
+        <img class="logo" src="favicon.svg" alt="" />
+        <h1>youdown</h1>
+        <p class="sub">유튜브 링크만 붙여넣으면 영상(MP4)·음원(MP3)으로 저장</p>
+      </header>
+
+      <!-- 컴퓨터용: 다운로드 버튼 -->
+      <section id="desktop" class="card">
+        <a id="dl-btn" class="btn" href="#">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round" />
+          </svg>
+          <span id="dl-label">다운로드</span>
+        </a>
+        <p id="dl-meta" class="btn-meta">무료 · 설치 후 바로 사용</p>
+        <p class="others">
+          다른 컴퓨터용:
+          <a href="#" data-os="mac">Mac</a> ·
+          <a href="#" data-os="win">Windows</a> ·
+          <a href="https://github.com/csy870617/youdown/releases/latest/download/youdown-linux">Linux</a>
+        </p>
+      </section>
+
+      <!-- 휴대폰에서 열었을 때 -->
+      <section id="mobile" class="card mobile hidden">
+        <p>youdown 은 <b>컴퓨터(Mac·Windows)</b>에서 사용하는 프로그램이에요.<br />이 링크를 컴퓨터에서 열어 주세요.</p>
+        <button id="copy-link" class="btn" type="button">링크 복사하기</button>
+      </section>
+
+      <!-- Mac 설치 방법 -->
+      <section id="steps-mac" class="card hidden">
+        <h2>Mac 설치 방법</h2>
+        <ol class="steps">
+          <li>받은 <b>youdown-mac.dmg</b> 를 열고, youdown 아이콘을 <b>응용 프로그램</b> 폴더로 끌어다 놓아요.</li>
+          <li><b>응용 프로그램</b>(또는 Launchpad)에서 youdown 을 실행해요.</li>
+          <li>
+            처음 한 번은 <b>"확인할 수 없음"</b> 창이 떠요. <b>완료</b>를 누른 뒤
+            <b>시스템 설정 → 개인정보 보호 및 보안</b> 맨 아래의 <b>"그래도 열기"</b>를 누르세요.
+            <p class="note">macOS 14 이하라면 youdown 을 <b>Control+클릭 → 열기</b> 로도 돼요. 서명 비용이 드는 인증을 받지 않은 앱이라 나오는 안내예요.</p>
+          </li>
+          <li>브라우저가 자동으로 열리면 끝! 처음 한 번만 필요한 준비(1~3분) 후 바로 쓸 수 있어요.</li>
+        </ol>
+      </section>
+
+      <section id="fast-mac" class="card fast hidden">
+        <h2>경고 없이 더 빠르게 <span class="badge">추천</span></h2>
+        <p class="note" style="margin:0">
+          <b>터미널</b>(⌘+스페이스 → "터미널")에 아래 한 줄을 붙여넣고 Enter —
+          설치부터 실행까지 자동으로 끝나요. 보안 경고도 뜨지 않아요.
+        </p>
+        <div class="cmd">
+          <code id="mac-cmd">curl -fsSL https://raw.githubusercontent.com/csy870617/youdown/HEAD/scripts/install-mac.sh | bash</code>
+          <button class="copy" type="button" data-copy="mac-cmd">복사</button>
+        </div>
+      </section>
+
+      <!-- Windows 설치 방법 -->
+      <section id="steps-win" class="card hidden">
+        <h2>Windows 설치 방법</h2>
+        <ol class="steps">
+          <li>받은 <b>youdown-setup.exe</b> 를 실행해요.</li>
+          <li>
+            <b>"Windows의 PC 보호"</b> 창이 뜨면 <b>추가 정보 → 실행</b>을 누르세요.
+            <p class="note">서명 비용이 드는 인증을 받지 않은 프로그램이라 나오는 안내예요.</p>
+          </li>
+          <li>설치가 끝나면 youdown 이 바로 실행되고 브라우저가 열려요. 다음부터는 <b>바탕화면의 youdown 아이콘</b>으로 실행하세요.</li>
+        </ol>
+        <p class="note">설치 없이 쓰고 싶다면 <a href="https://github.com/csy870617/youdown/releases/latest/download/youdown-win.exe">실행 파일만 받기</a></p>
+      </section>
+
+      <section class="card">
+        <h2>자주 묻는 질문</h2>
+        <details>
+          <summary>처음 실행할 때 왜 기다려야 하나요?</summary>
+          <p>유튜브 영상을 받는 데 필요한 구성요소(약 200MB)를 처음 한 번만 자동으로 내려받아요. 보통 1~3분이면 끝나고, 다음부터는 바로 실행돼요.</p>
+        </details>
+        <details>
+          <summary>어떻게 종료하나요?</summary>
+          <p>브라우저 탭을 닫으면 10분쯤 뒤 자동으로 종료돼요. 다시 쓰려면 youdown 아이콘을 누르면 됩니다. 이미 켜져 있을 때 아이콘을 누르면 창만 다시 열려요.</p>
+        </details>
+        <details>
+          <summary>새 버전은 어떻게 받나요?</summary>
+          <p>이 페이지에서 다시 내려받아 설치하면 덮어쓰기로 업데이트돼요. 유튜브 변화에 대응하는 다운로드 엔진은 앱이 알아서 최신으로 유지해요.</p>
+        </details>
+        <details>
+          <summary>삭제하려면?</summary>
+          <p>Mac: 응용 프로그램에서 youdown 을 휴지통으로 옮기고, 홈 폴더의 숨김 폴더 <code>.youdown</code> 도 지우면 완전히 삭제돼요. Windows: 설정 → 앱에서 youdown 을 제거하세요.</p>
+        </details>
+      </section>
+
+      <footer>
+        저작권이 있는 콘텐츠는 정당한 권리 범위 내에서만 이용하세요.<br />
+        개인적·합법적 용도 전용입니다.<br />
+        <a href="https://github.com/csy870617/youdown">소스 코드</a> ·
+        <a id="ver" href="https://github.com/csy870617/youdown/releases/latest">릴리스</a>
+      </footer>
+    </main>
+
+    <script>
+      const REL = "https://github.com/csy870617/youdown/releases/latest/download/";
+      const FILES = {
+        mac: { url: REL + "youdown-mac.dmg", label: "Mac용 다운로드", meta: "Apple Silicon · Intel 모두 지원" },
+        win: { url: REL + "youdown-setup.exe", label: "Windows용 다운로드", meta: "Windows 10 · 11" },
+      };
+
+      function detect() {
+        const ua = navigator.userAgent || "";
+        const plat = (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || "";
+        const mobile =
+          /Android|iPhone|iPod/i.test(ua) ||
+          (/iPad/.test(ua) || (plat === "MacIntel" && navigator.maxTouchPoints > 1));
+        if (mobile) return "mobile";
+        if (/Win/i.test(plat) || /Windows/i.test(ua)) return "win";
+        if (/Mac/i.test(plat) || /Mac OS X/i.test(ua)) return "mac";
+        if (/Linux/i.test(plat)) return "linux";
+        return "win";
+      }
+
+      function show(os) {
+        const $ = (id) => document.getElementById(id);
+        $("desktop").classList.toggle("hidden", os === "mobile");
+        $("mobile").classList.toggle("hidden", os !== "mobile");
+        const isMac = os === "mac";
+        $("steps-mac").classList.toggle("hidden", !isMac);
+        $("fast-mac").classList.toggle("hidden", !isMac);
+        $("steps-win").classList.toggle("hidden", os !== "win");
+        const f = FILES[os] || (os === "linux"
+          ? { url: REL + "youdown-linux", label: "Linux용 다운로드", meta: "x64 · 실행 권한을 준 뒤 실행" }
+          : FILES.win);
+        $("dl-btn").href = f.url;
+        $("dl-label").textContent = f.label;
+        $("dl-meta").textContent = f.meta;
+      }
+
+      document.querySelectorAll("[data-os]").forEach((a) =>
+        a.addEventListener("click", (e) => {
+          e.preventDefault();
+          show(a.dataset.os);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        })
+      );
+
+      async function copyText(text, btn) {
+        try {
+          await navigator.clipboard.writeText(text);
+        } catch {
+          const t = document.createElement("textarea");
+          t.value = text; document.body.appendChild(t); t.select();
+          try { document.execCommand("copy"); } catch {}
+          t.remove();
+        }
+        const old = btn.textContent;
+        btn.textContent = "복사됨 ✓";
+        setTimeout(() => (btn.textContent = old), 1600);
+      }
+      document.querySelectorAll("[data-copy]").forEach((b) =>
+        b.addEventListener("click", () => copyText(document.getElementById(b.dataset.copy).textContent.trim(), b))
+      );
+      document.getElementById("copy-link").addEventListener("click", (e) =>
+        copyText(location.href, e.currentTarget)
+      );
+
+      show(detect());
+
+      // 최신 버전 번호 표시 (실패해도 페이지는 그대로 동작)
+      fetch("https://api.github.com/repos/csy870617/youdown/releases/latest")
+        .then((r) => (r.ok ? r.json() : null))
+        .then((j) => {
+          if (j && j.tag_name) document.getElementById("ver").textContent = "릴리스 " + j.tag_name;
+        })
+        .catch(() => {});
+    </script>
+  </body>
+</html>

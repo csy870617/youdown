@@ -1,6 +1,6 @@
 {
   "name": "youdown",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "YouTube 영상/음원 다운로더 - 링크만 입력하면 영상 또는 음원으로 저장",
   "type": "module",
   "main": "server.js",
@@ -26,7 +26,8 @@
   },
   "pkg": {
     "assets": [
-      "public/**/*"
+      "public/**/*",
+      "package.json"
     ],
     "targets": [
       "node22-linux-x64",

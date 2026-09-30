@@ -16,7 +16,11 @@ export function openBrowser(url) {
     args = [url];
   }
   try {
-    const child = spawn(cmd, args, { detached: true, stdio: "ignore" });
+    const child = spawn(cmd, args, {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
     child.on("error", () => {});
     child.unref();
   } catch {

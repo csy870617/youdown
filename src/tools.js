@@ -4,14 +4,16 @@ import path from "node:path";
 import os from "node:os";
 import https from "node:https";
 
-// 사용자 홈에 도구를 캐시 (최초 1회만 내려받음)
-const APP_DIR = path.join(os.homedir(), ".youdown");
-const BIN_DIR = path.join(APP_DIR, "bin");
-const TMP_DIR = path.join(APP_DIR, "tmp");
-
 const isWin = process.platform === "win32";
 const isMac = process.platform === "darwin";
 const arch = process.arch; // 'x64' | 'arm64' ...
+
+// 사용자 홈에 도구를 캐시 (최초 1회만 내려받음).
+// Apple Silicon 은 네이티브(arm64) 도구를 따로 보관해, 예전 Intel 빌드가
+// 받아 둔 x86 도구(=Rosetta 필요)를 재사용하지 않도록 한다.
+export const APP_DIR = path.join(os.homedir(), ".youdown");
+const BIN_DIR = path.join(APP_DIR, isMac && arch === "arm64" ? "bin-arm64" : "bin");
+const TMP_DIR = path.join(APP_DIR, "tmp");
 
 function ensureDirs() {
   fs.mkdirSync(BIN_DIR, { recursive: true });
@@ -21,7 +23,9 @@ function ensureDirs() {
 function onPath(bin) {
   if (isWin) {
     // Windows 는 where 로 PATH(+PATHEXT, .exe/.cmd) 존재 여부 확인
-    return spawnSync("where", [bin], { encoding: "utf8" }).status === 0;
+    return (
+      spawnSync("where", [bin], { encoding: "utf8", windowsHide: true }).status === 0
+    );
   }
   // Unix: 실행 자체가 되면(=ENOENT 아님) 설치된 것으로 간주
   // (--version 종료 코드에 의존하지 않음: ffmpeg 등은 0 이 아닐 수 있음)
@@ -31,7 +35,7 @@ function onPath(bin) {
 // 자식 프로세스를 비동기로 실행 (이벤트 루프를 막지 않음)
 function run(cmd, args) {
   return new Promise((resolve, reject) => {
-    const c = spawn(cmd, args, { stdio: "ignore" });
+    const c = spawn(cmd, args, { stdio: "ignore", windowsHide: true });
     c.on("error", reject);
     c.on("close", (code) =>
       code === 0 ? resolve() : reject(new Error(`${cmd} 종료 코드 ${code}`))
@@ -41,9 +45,19 @@ function run(cmd, args) {
 
 // 아카이브 압축 해제. tar(bsdtar)는 zip·tar.xz 모두 처리하지만, 리눅스
 // GNU tar 는 zip 을 못 풀므로 그때는 unzip 으로 대체.
+// Windows 는 내장 tar.exe(bsdtar, zip 지원)를 전체 경로로 호출해, PATH 에 있는
+// 다른 tar(예: Git 의 GNU tar)가 먼저 잡히는 일을 막는다.
+function tarCmd() {
+  if (isWin) {
+    const sys = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe");
+    if (fs.existsSync(sys)) return sys;
+  }
+  return "tar";
+}
+
 async function extract(archive, dir) {
   try {
-    await run("tar", ["-xf", archive, "-C", dir]);
+    await run(tarCmd(), ["-xf", archive, "-C", dir]);
     return;
   } catch {
     if (archive.endsWith(".zip")) {
@@ -54,10 +68,12 @@ async function extract(archive, dir) {
   }
 }
 
-// 리다이렉트를 따라가며 파일 다운로드 (진행률 콜백 지원)
+// 리다이렉트를 따라가며 파일 다운로드 (진행률 콜백 지원).
+// dest 에 바로 쓰지 않고 .part 에 받은 뒤 이름을 바꿔, 중간에 끊겨도
+// 반쯤 받은 파일이 "설치됨"으로 오인되지 않게 한다.
 function download(url, dest, onProgress, redirects = 0) {
   return new Promise((resolve, reject) => {
-    if (redirects > 5) {
+    if (redirects > 8) {
       return reject(new Error("리다이렉트가 너무 많습니다: " + url));
     }
     const req = https.get(
@@ -70,7 +86,9 @@ function download(url, dest, onProgress, redirects = 0) {
           res.headers.location
         ) {
           res.resume();
-          return download(res.headers.location, dest, onProgress, redirects + 1).then(
+          // 상대 경로 리다이렉트도 처리
+          const next = new URL(res.headers.location, url).href;
+          return download(next, dest, onProgress, redirects + 1).then(
             resolve,
             reject
           );
@@ -81,13 +99,14 @@ function download(url, dest, onProgress, redirects = 0) {
         }
         const total = parseInt(res.headers["content-length"] || "0", 10);
         let got = 0;
-        const file = fs.createWriteStream(dest);
+        const part = dest + ".part";
+        const file = fs.createWriteStream(part);
         let settled = false;
         const fail = (e) => {
           if (settled) return;
           settled = true;
           file.destroy();
-          fs.rm(dest, { force: true }, () => reject(e));
+          fs.rm(part, { force: true }, () => reject(e));
         };
         // 응답 스트림 오류(네트워크 끊김 등)도 처리해 프로세스 크래시 방지
         res.on("error", fail);
@@ -99,28 +118,43 @@ function download(url, dest, onProgress, redirects = 0) {
         res.pipe(file);
         file.on("finish", () =>
           file.close(() => {
-            if (!settled) {
-              settled = true;
+            if (settled) return;
+            settled = true;
+            try {
+              fs.renameSync(part, dest);
               resolve();
+            } catch (e) {
+              reject(e);
             }
           })
         );
       }
     );
+    // 60초간 데이터가 없으면 끊고 실패 처리 (무한 대기 방지)
+    req.setTimeout(60_000, () => req.destroy(new Error("다운로드가 멈췄습니다.")));
     req.on("error", reject);
   });
 }
+
+// 파일을 임시 이름으로 복사한 뒤 교체 (중간에 꺼져도 반쪽 파일 방지)
+function installFile(src, dst) {
+  const tmp = dst + ".part";
+  fs.copyFileSync(src, tmp);
+  if (!isWin) fs.chmodSync(tmp, 0o755);
+  fs.renameSync(tmp, dst);
+}
+
+const pct = (p) => Math.round(p * 100);
 
 // ------- yt-dlp -------
 function ytdlpName() {
   return isWin ? "yt-dlp.exe" : "yt-dlp";
 }
 function ytdlpUrl() {
-  const base =
-    "https://github.com/yt-dlp/yt-dlp/releases/latest/download/";
+  const base = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/";
   if (isWin) return base + "yt-dlp.exe";
-  if (isMac) return base + "yt-dlp_macos";
-  return base + "yt-dlp_linux";
+  if (isMac) return base + "yt-dlp_macos"; // Intel·Apple Silicon 공용
+  return base + (arch === "arm64" ? "yt-dlp_linux_aarch64" : "yt-dlp_linux");
 }
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -144,11 +178,13 @@ async function resolveYtDlp(log) {
   }
   if (onPath("yt-dlp")) return "yt-dlp";
   ensureDirs();
-  log("yt-dlp 내려받는 중…");
-  await download(ytdlpUrl(), cached, (p) =>
-    log(`yt-dlp 내려받는 중… ${Math.round(p * 100)}%`)
+  log("다운로드 엔진(yt-dlp) 받는 중…", 0);
+  const tmp = path.join(TMP_DIR, ytdlpName());
+  await download(ytdlpUrl(), tmp, (p) =>
+    log(`다운로드 엔진(yt-dlp) 받는 중… ${pct(p)}%`, p)
   );
-  if (!isWin) fs.chmodSync(cached, 0o755);
+  installFile(tmp, cached);
+  fs.rmSync(tmp, { force: true });
   return cached;
 }
 
@@ -157,18 +193,19 @@ function ffmpegBinName() {
   return isWin ? "ffmpeg.exe" : "ffmpeg";
 }
 // 플랫폼별 ffmpeg(+ffprobe) 아카이브 목록.
-// 리눅스·윈도우는 GitHub(BtbN) 정적 빌드(ffmpeg+ffprobe 포함), mac 은
-// evermeet(ffmpeg·ffprobe 별도). GitHub 직배포라 안정적이다.
+// 리눅스·윈도우는 GitHub(BtbN) 정적 빌드(ffmpeg+ffprobe 포함),
+// mac 은 martin-riedl 정적 빌드(Intel·Apple Silicon 각각 네이티브).
 function ffmpegArchives() {
-  const btbn =
-    "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/";
+  const btbn = "https://github.com/BtbN/FFmpeg-Builds/releases/latest/download/";
   if (isWin) {
     return [{ url: btbn + "ffmpeg-master-latest-win64-gpl.zip", ext: "zip" }];
   }
   if (isMac) {
+    const a = arch === "arm64" ? "arm64" : "amd64";
+    const base = `https://ffmpeg.martin-riedl.de/redirect/latest/macos/${a}/release/`;
     return [
-      { url: "https://evermeet.cx/ffmpeg/getrelease/zip", ext: "zip" },
-      { url: "https://evermeet.cx/ffmpeg/getrelease/ffprobe/zip", ext: "zip" },
+      { url: base + "ffmpeg.zip", ext: "zip" },
+      { url: base + "ffprobe.zip", ext: "zip" },
     ];
   }
   const target = arch === "arm64" ? "linuxarm64" : "linux64";
@@ -201,27 +238,24 @@ async function resolveFfmpeg(log) {
   fs.rmSync(extractDir, { recursive: true, force: true });
   fs.mkdirSync(extractDir, { recursive: true });
 
-  log("ffmpeg 내려받는 중…");
   const archives = ffmpegArchives();
   for (let i = 0; i < archives.length; i++) {
     const a = archives[i];
     const archive = path.join(TMP_DIR, `ffmpeg-archive-${i}.${a.ext}`);
+    log("변환 도구(ffmpeg) 받는 중…", 0);
     await download(a.url, archive, (p) =>
-      log(`ffmpeg 내려받는 중… ${Math.round(p * 100)}%`)
+      log(`변환 도구(ffmpeg) 받는 중… ${pct(p)}%`, p)
     );
-    log("ffmpeg 설치 중…");
+    log("변환 도구(ffmpeg) 설치 중…");
     // 비동기 압축 해제로 이벤트 루프를 막지 않음
     await extract(archive, extractDir);
     fs.rmSync(archive, { force: true });
   }
 
-  for (const bin of [ffmpegBinName(), isWin ? "ffprobe.exe" : "ffprobe"]) {
+  // ffprobe 를 먼저, ffmpeg 를 마지막에 설치 → ffmpeg 존재 = 설치 완료
+  for (const bin of [isWin ? "ffprobe.exe" : "ffprobe", ffmpegBinName()]) {
     const src = findFileRecursive(extractDir, bin);
-    if (src) {
-      const dst = path.join(BIN_DIR, bin);
-      fs.copyFileSync(src, dst);
-      if (!isWin) fs.chmodSync(dst, 0o755);
-    }
+    if (src) installFile(src, path.join(BIN_DIR, bin));
   }
   fs.rmSync(extractDir, { recursive: true, force: true });
 
@@ -236,15 +270,12 @@ function denoName() {
   return isWin ? "deno.exe" : "deno";
 }
 function denoUrl() {
-  const base =
-    "https://github.com/denoland/deno/releases/latest/download/";
+  const base = "https://github.com/denoland/deno/releases/latest/download/";
   if (isWin) return base + "deno-x86_64-pc-windows-msvc.zip";
   if (isMac)
     return (
       base +
-      (arch === "arm64"
-        ? "deno-aarch64-apple-darwin.zip"
-        : "deno-x86_64-apple-darwin.zip")
+      (arch === "arm64" ? "deno-aarch64-apple-darwin.zip" : "deno-x86_64-apple-darwin.zip")
     );
   return (
     base +
@@ -270,20 +301,18 @@ async function resolveDeno(log) {
   // 2) 없으면 자동 다운로드 (실패해도 앱은 계속 동작)
   try {
     ensureDirs();
-    log("유튜브 처리용 구성요소(deno) 내려받는 중…");
+    log("유튜브 처리 도구(deno) 받는 중…", 0);
     const archive = path.join(TMP_DIR, "deno.zip");
     await download(denoUrl(), archive, (p) =>
-      log(`deno 내려받는 중… ${Math.round(p * 100)}%`)
+      log(`유튜브 처리 도구(deno) 받는 중… ${pct(p)}%`, p)
     );
     const extractDir = path.join(TMP_DIR, "deno-extract");
     fs.rmSync(extractDir, { recursive: true, force: true });
     fs.mkdirSync(extractDir, { recursive: true });
+    log("유튜브 처리 도구(deno) 설치 중…");
     await extract(archive, extractDir);
     const src = findFileRecursive(extractDir, denoName());
-    if (src) {
-      fs.copyFileSync(src, cachedDeno);
-      if (!isWin) fs.chmodSync(cachedDeno, 0o755);
-    }
+    if (src) installFile(src, cachedDeno);
     fs.rmSync(archive, { force: true });
     fs.rmSync(extractDir, { recursive: true, force: true });
     if (fs.existsSync(cachedDeno)) return cachedDeno;
@@ -294,6 +323,7 @@ async function resolveDeno(log) {
 }
 
 // 모든 도구를 준비. 최초 실행 시 자동 다운로드.
+// log(message, percent?) — percent 는 0~1 (현재 항목 진행률), 없으면 undefined
 export async function ensureTools(log = () => {}) {
   const ytdlp = await resolveYtDlp(log);
   const ffmpegDir = await resolveFfmpeg(log); // 경로(dir) 또는 null(시스템 PATH)
