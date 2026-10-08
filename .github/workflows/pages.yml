@@ -7,6 +7,8 @@ on:
     paths:
       - "site/**"
       - "public/favicon.svg"
+      - "public/favicon-32.png"
+      - "public/apple-touch-icon.png"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -28,7 +30,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Prepare site
-        run: cp public/favicon.svg public/apple-touch-icon.png site/
+        run: cp public/favicon.svg public/favicon-32.png public/apple-touch-icon.png site/
       - uses: actions/configure-pages@v5
         with:
           enablement: true

@@ -14,6 +14,7 @@ const typeSeg = $("type-seg");
 const qualityGroup = $("quality-group");
 const qualitySelect = $("quality");
 const downloadBtn = $("download-btn");
+const downloadLabel = $("download-label"); // 아이콘은 두고 글자만 바꾼다
 
 const progress = $("progress");
 const stageEl = $("stage");
@@ -242,8 +243,16 @@ function fmtDuration(sec) {
 urlForm.addEventListener("submit", async (e) => {
   e.preventDefault();
   clearError();
-  const url = urlInput.value.trim();
-  if (!url) return;
+  let url = urlInput.value.trim();
+  if (!url) {
+    showError("유튜브 링크를 붙여넣어 주세요.");
+    return;
+  }
+  // "youtu.be/…" 처럼 https:// 없이 붙여넣어도 받아 준다
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(url)) {
+    url = "https://" + url;
+    urlInput.value = url;
+  }
 
   fetchBtn.disabled = true;
   fetchBtn.textContent = "불러오는 중…";
@@ -260,7 +269,8 @@ urlForm.addEventListener("submit", async (e) => {
     if (!res.ok) throw new Error(data.error || "정보를 불러오지 못했습니다.");
 
     currentUrl = url;
-    thumb.src = data.thumbnail || "";
+    if (data.thumbnail) thumb.src = data.thumbnail;
+    else thumb.removeAttribute("src"); // 빈 src 는 페이지 주소를 다시 요청함
     thumb.style.visibility = data.thumbnail ? "visible" : "hidden";
     titleEl.textContent = data.title || "제목 없음";
     uploaderEl.textContent = data.uploader || "";
@@ -274,7 +284,7 @@ urlForm.addEventListener("submit", async (e) => {
   } catch (err) {
     showError(err.message);
   } finally {
-    fetchBtn.disabled = false;
+    fetchBtn.disabled = !appReady; // 그사이 앱이 준비 상태가 아니게 됐으면 그대로 막아 둠
     fetchBtn.textContent = "불러오기";
   }
 });
@@ -293,7 +303,7 @@ typeSeg.addEventListener("click", (e) => {
 downloadBtn.addEventListener("click", async () => {
   clearError();
   downloadBtn.disabled = true;
-  downloadBtn.textContent = "시작 중…";
+  downloadLabel.textContent = "시작 중…";
 
   try {
     const res = await fetch("/api/jobs", {
@@ -317,7 +327,17 @@ downloadBtn.addEventListener("click", async () => {
 
 function resetDownloadBtn() {
   downloadBtn.disabled = false;
-  downloadBtn.textContent = "다운로드";
+  downloadLabel.textContent = "다운로드";
+}
+
+// 받은 파일 저장 — 페이지를 이동하지 않으므로 혹시 실패해도 화면이 사라지지 않는다
+function saveFile(url) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = ""; // 파일 이름은 서버가 알려 준 이름(한글 제목 포함)을 사용
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 // 4) 진행률 추적 (SSE)
@@ -329,6 +349,7 @@ function trackJob(jobId) {
   progressNote.textContent = "";
 
   const es = new EventSource(`/api/jobs/${jobId}/events`);
+  let finished = false;
 
   es.onmessage = (ev) => {
     const s = JSON.parse(ev.data);
@@ -340,15 +361,16 @@ function trackJob(jobId) {
     }
 
     if (s.status === "done") {
+      finished = true;
       es.close();
       stageEl.textContent = "완료 — 저장을 시작합니다";
       percentEl.textContent = "100%";
       barFill.style.width = "100%";
       progressNote.textContent = s.fileName ? "파일: " + s.fileName : "";
-      // 파일 저장 트리거
-      window.location.href = `/api/jobs/${jobId}/file`;
+      saveFile(`/api/jobs/${jobId}/file`);
       setTimeout(resetDownloadBtn, 1500);
     } else if (s.status === "error") {
+      finished = true;
       es.close();
       showError(s.error || "다운로드 중 오류가 발생했습니다.");
       progress.classList.add("hidden");
@@ -358,23 +380,23 @@ function trackJob(jobId) {
 
   es.onerror = () => {
     es.close();
-    // done 직후 서버가 스트림을 닫으면 여기로 올 수 있으므로 상태로 판단
-    if (!downloadBtn.disabled) return;
-    // 아직 완료 안 됐는데 끊긴 경우
-    if (barFill.style.width !== "100%") {
-      showError("서버 연결이 끊어졌습니다. 다시 시도해주세요.");
-      progress.classList.add("hidden");
-      resetDownloadBtn();
-    }
+    if (finished) return; // 완료·오류를 이미 받은 뒤 서버가 스트림을 닫은 경우
+    // 끝나기 전에 끊긴 경우 (변환 단계처럼 100% 에서 끊겨도 버튼이 멈춰 있지 않게)
+    showError("서버 연결이 끊어졌습니다. 다시 시도해주세요.");
+    progress.classList.add("hidden");
+    resetDownloadBtn();
   };
 }
 
 // 라이트/다크 모드 전환 (기본 라이트, 선택은 기억)
-document.getElementById("theme").addEventListener("click", () => {
+const themeBtn = $("theme");
+themeBtn.setAttribute("aria-pressed", String(document.documentElement.dataset.theme === "dark"));
+themeBtn.addEventListener("click", () => {
   const root = document.documentElement;
   const dark = root.dataset.theme !== "dark";
   if (dark) root.dataset.theme = "dark";
   else delete root.dataset.theme;
+  themeBtn.setAttribute("aria-pressed", String(dark));
   try {
     localStorage.setItem("youdown-theme", dark ? "dark" : "light");
   } catch {

@@ -11,6 +11,7 @@
     <title>youdown 다운로드</title>
     <meta name="description" content="유튜브 영상·음원을 내 컴퓨터에 저장하는 youdown 다운로드" />
     <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
     <style>
       :root {
@@ -23,7 +24,7 @@
         --border-strong: rgba(15, 15, 30, 0.16);
         --text: #16161d;
         --text-2: #444458;
-        --muted: #80808c;
+        --muted: #6e6e7a;
         --glow: 0.1;
         --accent: #ff4747;
         --accent-2: #ff6b6b;
@@ -87,9 +88,6 @@
       .btn:hover { box-shadow: 0 16px 32px -10px rgba(255, 71, 71, 0.8); }
       .btn:active { transform: translateY(1px); }
       .btn svg { width: 20px; height: 20px; }
-      .btn-meta { text-align: center; color: var(--muted); font-size: 12.5px; margin: 10px 0 0; }
-      .others { text-align: center; font-size: 13px; color: var(--muted); margin: 14px 0 0; }
-      .others a { color: var(--text-2); }
 
       .steps { list-style: none; padding: 0; margin: 4px 0 0; counter-reset: s; }
       .steps li { position: relative; padding: 0 0 16px 40px; counter-increment: s; color: var(--text-2); font-size: 14.5px; }
@@ -102,14 +100,10 @@
       .card h2 { font-size: 15px; margin: 0 0 14px; color: var(--text); font-weight: 700; }
       .note { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
 
-      .fast { border-color: rgba(52, 211, 153, 0.35); }
-      .fast h2 { display: flex; align-items: center; gap: 8px; }
-      .badge { font-size: 11px; font-weight: 700; color: var(--ok); padding: 2px 8px;
-        border-radius: 999px; border: 1px solid rgba(52, 211, 153, 0.4); background: rgba(52, 211, 153, 0.1); }
       .cmd { display: flex; gap: 8px; align-items: stretch; margin-top: 10px; }
       .cmd code { flex: 1; min-width: 0; overflow-x: auto; white-space: nowrap; font-family: var(--mono);
         font-size: 12.5px; padding: 11px 12px; border-radius: 11px; background: var(--surface-2);
-        border: 1px solid var(--border); color: var(--text); }
+        border: 1px solid var(--border); color: var(--text); user-select: all; -webkit-user-select: all; }
       .copy { flex-shrink: 0; font-family: inherit; font-size: 13px; font-weight: 650; padding: 0 14px;
         border-radius: 11px; border: 1px solid var(--border-strong); background: var(--surface-2);
         color: var(--text); cursor: pointer; }
@@ -139,14 +133,12 @@
       .guide { animation: fade 0.25s ease; }
       @keyframes fade { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
       .win-dl { margin: 10px 0 4px; padding: 13px; font-size: 15.5px; }
-      .dl-again { font-size: 12.5px; color: var(--muted); margin: 12px 0 0; }
-      .dl-again a { color: var(--text-2); }
       .kbd { font-family: var(--mono); font-size: 12px; padding: 1px 6px; border-radius: 6px;
         border: 1px solid var(--border-strong); background: var(--surface-2); }
       .mobile { text-align: center; }
       .mobile p { color: var(--text-2); margin: 0 0 14px; }
 
-      .theme-btn { position: fixed; top: 14px; right: 14px; z-index: 10; width: 38px; height: 38px;
+      .theme-btn { position: absolute; top: 14px; right: 14px; z-index: 10; width: 38px; height: 38px;
         display: grid; place-items: center; border-radius: 50%; cursor: pointer;
         border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text-2); }
       .theme-btn:hover { color: var(--text); }
@@ -164,7 +156,6 @@
       .launch-btn svg { width: 16px; height: 16px; color: var(--accent); }
       .launch-sub { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
       .launch-hint { font-size: 12.5px; color: var(--text-2); margin: 6px 0 0; }
-      .launch-hint a { color: var(--accent); font-weight: 650; }
 
       footer { text-align: center; font-size: 12px; color: var(--muted); line-height: 1.7; margin-top: 26px; }
       footer a { color: var(--muted); }
@@ -173,7 +164,7 @@
   </head>
   <body>
     <div class="glow" aria-hidden="true"></div>
-    <button id="theme" class="theme-btn" type="button" aria-label="화면 밝기 바꾸기" title="라이트/다크 모드">
+    <button id="theme" class="theme-btn" type="button" aria-label="다크 모드" aria-pressed="false" title="라이트/다크 모드">
       <svg class="moon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
       <svg class="sun" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
     </button>
@@ -242,7 +233,7 @@
         <ol class="steps">
           <li>
             실행 파일을 받아요.
-            <a id="win-link" class="btn win-dl" href="#">
+            <a id="win-link" class="btn win-dl" href="https://github.com/csy870617/youdown/releases/latest/download/youdown-win.exe">
               <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
               youdown-win.exe 받기
             </a>
@@ -271,7 +262,7 @@
         </details>
         <details>
           <summary>삭제하려면?</summary>
-          <p>Mac: 응용 프로그램에서 youdown 을 휴지통으로 옮기세요. Windows: 받은 youdown-win.exe 파일을 지우면 돼요. 앱이 받아 둔 구성요소는 홈 폴더의 숨김 폴더 <code>.youdown</code> 에 있으니 함께 지우면 완전히 삭제돼요.</p>
+          <p>Mac: 응용 프로그램에서 youdown 을 휴지통으로 옮기세요. Windows: 받은 youdown-win.exe 파일을 지우면 돼요. 앱이 받아 둔 구성요소는 홈 폴더의 <code>.youdown</code> 폴더에 있으니 함께 지우면 돼요.</p>
         </details>
       </section>
 
@@ -284,9 +275,7 @@
     </main>
 
     <script>
-      const WIN_URL = "https://github.com/csy870617/youdown/releases/latest/download/youdown-win.exe";
       const $ = (id) => document.getElementById(id);
-      $("win-link").href = WIN_URL;
 
       function isMobile() {
         const ua = navigator.userAgent || "";
@@ -315,46 +304,56 @@
         b.addEventListener("click", () => select(b.dataset.os));
       });
 
+      function copyFallback(text) {
+        const t = document.createElement("textarea");
+        t.value = text; t.setAttribute("readonly", "");
+        t.style.cssText = "position:fixed;top:0;left:0;opacity:0"; // 화면이 튀지 않게
+        document.body.appendChild(t); t.select();
+        let ok = false;
+        try { ok = document.execCommand("copy"); } catch {}
+        t.remove();
+        return ok;
+      }
       async function copyText(text, btn) {
-        try {
-          await navigator.clipboard.writeText(text);
-        } catch {
-          const t = document.createElement("textarea");
-          t.value = text; document.body.appendChild(t); t.select();
-          try { document.execCommand("copy"); } catch {}
-          t.remove();
-        }
-        const old = btn.textContent;
-        btn.textContent = "복사됨 ✓";
-        setTimeout(() => (btn.textContent = old), 1600);
+        let ok = false;
+        try { await navigator.clipboard.writeText(text); ok = true; } catch { ok = copyFallback(text); }
+        if (!btn.dataset.label) btn.dataset.label = btn.textContent; // 원래 글자는 한 번만 기억
+        clearTimeout(btn.copyTimer);
+        btn.textContent = ok ? "복사됨 ✓" : "복사 실패";
+        btn.copyTimer = setTimeout(() => (btn.textContent = btn.dataset.label), 1600);
       }
       document.querySelectorAll("[data-copy]").forEach((b) =>
         b.addEventListener("click", () => copyText($(b.dataset.copy).textContent.trim(), b)));
       $("copy-link").addEventListener("click", (e) => copyText(location.href, e.currentTarget));
 
       // ---- youdown 실행하기 ----
-      // youdown 이 켜지면 브라우저에 새 탭이 열리며 이 페이지가 가려진다 → 성공으로 판단
+      // youdown 이 켜지면 브라우저에 새 탭이 열리며 이 페이지가 가려진다 → 그때 성공으로 표시
+      const launchHint = $("launch-hint");
       let launchTimer = null;
+      let watchUntil = 0; // 브라우저 확인 창에서 늦게 눌러도 1분 동안은 성공으로 인식
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden || Date.now() > watchUntil) return;
+        watchUntil = 0;
+        clearTimeout(launchTimer);
+        launchHint.textContent = "✓ youdown 이 열렸어요.";
+      });
       $("launch").addEventListener("click", () => {
         clearTimeout(launchTimer);
-        const hint = $("launch-hint");
-        let left = false;
-        const onLeave = () => { if (document.hidden) left = true; };
-        document.addEventListener("visibilitychange", onLeave);
-        hint.innerHTML = '브라우저가 물으면 <b>열기</b>를 눌러 주세요.';
-        hint.classList.remove("hidden");
+        watchUntil = Date.now() + 60_000;
+        launchHint.innerHTML = "브라우저가 물으면 <b>열기</b>(또는 <b>허용</b>)를 눌러 주세요.";
+        launchHint.classList.remove("hidden");
         launchTimer = setTimeout(() => {
-          document.removeEventListener("visibilitychange", onLeave);
-          hint.innerHTML = left
-            ? "✓ youdown 이 열렸어요."
-            : '열리지 않으면 Mac 은 먼저 설치를, Windows 는 받은 파일을 한 번 더블클릭해 주세요.';
-        }, 6000);
+          launchHint.textContent = "열리지 않으면 Mac 은 먼저 설치를, Windows 는 받은 파일을 한 번 더블클릭해 주세요.";
+        }, 8000);
       });
 
-      $("theme").addEventListener("click", () => {
+      const themeBtn = $("theme");
+      themeBtn.setAttribute("aria-pressed", String(document.documentElement.dataset.theme === "dark"));
+      themeBtn.addEventListener("click", () => {
         const dark = document.documentElement.dataset.theme !== "dark";
         if (dark) document.documentElement.dataset.theme = "dark";
         else delete document.documentElement.dataset.theme;
+        themeBtn.setAttribute("aria-pressed", String(dark));
         try { localStorage.setItem("youdown-theme", dark ? "dark" : "light"); } catch {}
       });
 

@@ -89,7 +89,11 @@ async function runJob(url, type) {
   if (!text.includes('"status":"done"')) fail(`${type} 작업 실패: ${text.slice(-300)}`);
   const f = await get(`/api/jobs/${jobId}/file`);
   if (f.status !== 200) fail(`${type} 파일을 받지 못했습니다 (HTTP ${f.status})`);
-  return Buffer.from(await f.arrayBuffer());
+  // 저장될 파일 이름 (Content-Disposition 의 UTF-8 이름)
+  const cd = f.headers.get("content-disposition") || "";
+  const m = cd.match(/filename\*=UTF-8''([^;]+)/i);
+  const name = m ? decodeURIComponent(m[1]) : (cd.match(/filename="([^"]*)"/) || [])[1] || "";
+  return { data: Buffer.from(await f.arrayBuffer()), name };
 }
 
 const h0 = await waitForApp();
@@ -101,14 +105,19 @@ if (!h.jsRuntime) fail("deno 가 준비되지 않았습니다");
 
 const srv = await serveFixture();
 const url = `http://127.0.0.1:${srv.address().port}/sample.mp4`;
+// 한글 제목이 파일 이름에 그대로 남는지 확인용 (서버는 어떤 경로든 같은 영상을 준다)
+const KO_TITLE = "한글 제목 테스트";
+const koUrl = `http://127.0.0.1:${srv.address().port}/${encodeURIComponent(KO_TITLE)}.mp4`;
 
-const mp3 = await runJob(url, "audio");
+const { data: mp3, name: mp3Name } = await runJob(koUrl, "audio");
 const isMp3 =
   mp3.slice(0, 3).toString() === "ID3" || (mp3[0] === 0xff && (mp3[1] & 0xe0) === 0xe0);
 if (!isMp3 || mp3.length < 1000) fail(`MP3 가 올바르지 않습니다 (${mp3.length} bytes)`);
 console.log(`✓ 음원 변환 OK (${mp3.length} bytes)`);
+if (mp3Name !== `${KO_TITLE}.mp3`) fail(`파일 이름에 한글 제목이 남지 않았습니다: "${mp3Name}"`);
+console.log(`✓ 한글 파일 이름 OK (${mp3Name})`);
 
-const mp4 = await runJob(url, "video");
+const { data: mp4 } = await runJob(url, "video");
 if (mp4.slice(4, 8).toString() !== "ftyp") fail("MP4 가 올바르지 않습니다");
 console.log(`✓ 영상 저장 OK (${mp4.length} bytes)`);
 

@@ -368,7 +368,9 @@ function buildYtArgs({ url, type, quality, outDir }) {
     "--no-playlist",
     "--no-warnings",
     "--newline",
-    "--restrict-filenames",
+    // 한글 등 원래 제목을 파일 이름에 그대로 살리고, Windows 에서 못 쓰는 문자만 바꾼다
+    // (--restrict-filenames 는 한글을 모두 지워 "_.mp3" 같은 이름이 됐음)
+    "--windows-filenames",
     "-o",
     output,
   ];
